@@ -1,10 +1,12 @@
 // @generated automatically by Diesel CLI.
 
 diesel::table! {
-    posts (id) {
+    presences (id) {
         id -> Int4,
-        title -> Varchar,
-        body -> Text,
-        published -> Bool,
+        id_str -> Varchar,
+        msg_type -> Varchar,
+        reason -> Text,
+        asset -> Text,
+        time -> Text,
     }
 }

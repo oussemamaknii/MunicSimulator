@@ -8,7 +8,6 @@ mod services;
 #[launch]
 fn rocket() -> _ {
     rocket::build()
-        .mount("/", routes![services::create_post])
-        .mount("/", routes![services::list])
+        .mount("/", routes![services::simulate, services::index])
         .attach(Template::fairing())
 }
