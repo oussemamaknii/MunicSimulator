@@ -11,6 +11,11 @@ dotenvy = "0.15"
 serde = "1.0.152"
 chrono = "^0.4"
 google_maps = "3.1"
+tokio = "1.26.0"
+serde_json = "1.0.94"
+winping = "0.10.1"
+dns-lookup = "1.0.8"
+url = "2.3.1"
 
 [dependencies.rocket_dyn_templates]
 features = ["handlebars"]
