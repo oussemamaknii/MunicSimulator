@@ -5,6 +5,9 @@ extern crate diesel;
 extern crate rocket;
 use crate::models;
 use crate::schema;
+extern crate blog;
+use blog::ThreadPool;
+use core::panic::Location;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use dotenvy::dotenv;
@@ -64,11 +67,18 @@ pub async fn index() -> Template {
     // let results = self::schema::posts::dsl::posts
     //     .load::<Post>(connection)
     //     .expect("Error loading posts");
-    // maps().await;
+    // get_directions().await;
+    // let pool = ThreadPool::new(4);
+
+    // pool.execute(|| {
+    //     get_directions().await;
+    // });
+    get_directions().await;
+
     Template::render("index", context! {})
 }
 
-async fn maps() -> () {
+async fn get_directions() -> () {
     let google_maps_client = GoogleMapsClient::new("AIzaSyAo1agGjrUSZhLwPydiX-_dJ-CEQkxoRmU");
     let directions = google_maps_client
         .directions(
