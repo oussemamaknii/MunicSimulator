@@ -74,12 +74,13 @@
 </head>
 
 <body>
-  <form action="/simulate" method="post">
+  <form id="cord_form" method="post" action="/simulate">
     <div class="formcontainer">
       <div class="container">
 
         <label><strong>Your URL :</strong></label>
         <input name="url" id="url" type="text" placeholder="Enter your Notification URL" required>
+        <p>{{ msg }}</p>
 
         <h1>Coordinates</h1>
         <label><strong>Latitude</strong></label>
@@ -87,7 +88,18 @@
         <label><strong>Longitude</strong></label>
         <input name="lon" id="lon" type="text" placeholder="Enter Longitude" required>
       </div>
-      <button type="submit"><strong>Simulate !!</strong></button>
+      <button type="submit" id="button"><strong>Simulate !!</strong></button>
   </form>
 </body>
+<script src="https://unpkg.com/validator@latest/validator.min.js"></script>
+<script type="text/javascript">
+  const selectElement = document.getElementById("url");
+  const button1 = document.getElementById("button");
+  
+  selectElement.addEventListener("input", (event) => {
+    button1.disabled = !validator.isURL(event.target.value);
+  });
+
+</script>
+
 </html>
