@@ -1,6 +1,6 @@
 #Cargo.toml
 [package]
-name = "blog"
+name = "MunicSimulator"
 version = "0.1.0"
 edition = "2021"
 
@@ -18,6 +18,9 @@ url = "2.3.1"
 mongodb = "2.4.0"
 bson = { version = "2", features = ["chrono-0_4"] }
 reqwest = { version = "0.11", features = ["blocking","json"] }
+futures = "0.3.27"
+polyline = "0.10.0"
+substring = "1.4.5"
 
 [dependencies.rocket_dyn_templates]
 features = ["handlebars"]

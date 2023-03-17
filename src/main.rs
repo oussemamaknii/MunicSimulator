@@ -13,7 +13,8 @@ fn rocket() -> _ {
                 services::simulate,
                 services::index,
                 services::store_p,
-                services::store_t
+                services::store_t,
+                services::test
             ],
         )
         .attach(Template::fairing())

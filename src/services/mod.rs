@@ -28,27 +28,36 @@ pub fn simulate(user_input: Form<UserInput>) -> Template {
 
     if ping_server(new_user_input.url.clone()) {
         tokio::spawn(async move {
-            use google_maps::prelude::*;
+            use futures::future::join_all;
+            let mut handles = vec![];
 
-            let google_maps_client =
-                GoogleMapsClient::new("AIzaSyAo1agGjrUSZhLwPydiX-_dJ-CEQkxoRmU");
-            let directions = google_maps_client
-                .directions(
-                    Location::Address(String::from("240 McLeod St, Ottawa, ON K2P 2R1")),
-                    Location::LatLng(LatLng::try_from_f64(45.403_509, -75.618_904).unwrap()),
-                )
-                .with_travel_mode(TravelMode::Driving)
-                .execute()
-                .await;
+            let worker = tokio::spawn(async move {
+                use google_maps::prelude::*;
 
-            send_presence(directions, &new_user_input.url.clone()).await;
+                let google_maps_client =
+                    GoogleMapsClient::new("AIzaSyAo1agGjrUSZhLwPydiX-_dJ-CEQkxoRmU");
+                let directions = google_maps_client
+                    .directions(
+                        Location::Address(String::from("ariana, tunisie")),
+                        Location::Address(String::from("marsa tunisie")),
+                        // Location::LatLng(LatLng::try_from_f64(45.403_509, -75.618_904).unwrap()),
+                    )
+                    .with_travel_mode(TravelMode::Driving)
+                    .execute()
+                    .await;
+
+                send_presence(directions, &new_user_input.url.clone()).await;
+                println!("Work Done !")
+            });
+
+            handles.push(worker);
+            join_all(handles).await;
+            println!("Shuting down the Handler thread!!")
         });
+
         return Template::render("index", context! {msg:"Simulating !"});
     }
-    Template::render(
-        "index",
-        context! {msg:"Pinging Server but not receiving a pong ! check your URL"},
-    )
+    Template::render("index", context! {msg:"Ping missing pong ! check your URL"})
 }
 
 async fn send_presence(
@@ -60,6 +69,7 @@ async fn send_presence(
 ) -> () {
     use std::collections::HashMap;
     let mut ten_minutes = time::interval(Duration::from_secs(5));
+
     loop {
         ten_minutes.tick().await;
         println!("sending ...");
@@ -75,6 +85,72 @@ async fn send_presence(
     }
 }
 
+#[get("/test")]
+pub async fn test() -> () {
+    use google_maps::prelude::*;
+    use polyline;
+
+    let google_maps_client = GoogleMapsClient::new("AIzaSyAo1agGjrUSZhLwPydiX-_dJ-CEQkxoRmU");
+    let directions = google_maps_client
+        .directions(
+            Location::Address(String::from("ariana, tunisie")),
+            Location::Address(String::from("marsa tunisie")),
+            // Location::LatLng(LatLng::try_from_f64(45.403_509, -75.618_904).unwrap()),
+        )
+        .with_travel_mode(TravelMode::Driving)
+        .execute()
+        .await;
+
+    let json_data = &directions.unwrap().routes[0].legs[0];
+
+    let durations = &json_data.duration.text;
+    let distance = &json_data.distance.text;
+
+    for step in &json_data.steps {
+        let result = polyline::decode_polyline(&step.polyline.points, 5).unwrap();
+        let mut count = 0;
+        for coord in result {
+            count = count + 1;
+        }
+        use substring::Substring;
+        use tokio::time::Duration;
+        let c: char = ' ';
+        let mut ten_minutes = time::interval(
+            Duration::from_secs_f64(
+                (((step.duration.text)
+                    .to_string()
+                    .substring(0, (step.duration.text).find(' ').unwrap())
+                    .parse::<u64>()
+                    .unwrap())
+                    * 60) as f64
+                    / count as f64,
+            )
+            .try_into()
+            .unwrap(),
+        );
+
+        ten_minutes.tick().await;
+
+        // println!(
+        //     "{:#?} {} {}",
+        //     (((step.duration.text)
+        //         .to_string()
+        //         .substring(0, (step.duration.text).find(' ').unwrap())
+        //         .parse::<u64>()
+        //         .unwrap())
+        //         * 60) as f32
+        //         / count as f32,
+        //     (((step.duration.text)
+        //         .to_string()
+        //         .substring(0, (step.duration.text).find(' ').unwrap())
+        //         .parse::<u64>()
+        //         .unwrap())
+        //         * 60),
+        //     count
+        // );
+    }
+}
+
 #[get("/")]
 pub fn index() -> Template {
     Template::render("index", context! {msg:""})
@@ -82,16 +158,19 @@ pub fn index() -> Template {
 
 #[get("/store_presence")]
 pub async fn store_p() -> Template {
-    store_presence().await;
-    Template::render("index", context! {msg:"Stored Successfully"})
+    tokio::spawn(async move {
+        store_presence().await;
+    });
+    Template::render("index", context! {msg:"Presences Stored Successfully"})
 }
 
 #[get("/store_tracks")]
-pub fn store_t() -> Template {
-    Template::render("index", context! {msg:""})
+pub async fn store_t() -> Template {
+    tokio::spawn(async move { store_tracks().await });
+    Template::render("index", context! {msg:"Tracks Stored Successfully"})
 }
 
-async fn store_presence() -> Result<(), Box<dyn Error>> {
+async fn store_presence() -> Result<(), Box<dyn Error + Send + Sync>> {
     use models::Presence;
     use std::fs;
 
@@ -115,38 +194,32 @@ async fn store_presence() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-// fn store_tracks() {
-//     // let results = self::schema::posts::dsl::posts
-//     //     .load::<Post>(connection)
-//     //     .expect("Error loading posts");
+async fn store_tracks() -> Result<(), Box<dyn Error + Send + Sync>> {
+    use dotenvy::dotenv;
+    use models::Tracks;
+    use std::fs;
 
-//     use models::Presence;
-//     use serde_json::Value;
-//     use std::fs;
+    dotenv().ok();
 
-//     let data = fs::read_to_string("./presence.json").expect("Unable to read file");
+    let data = fs::read_to_string("./tracks.json").expect("Unable to read file");
 
-//     let json_data: serde_json::Value = serde_json::from_str(&data).expect("Unable to read file");
+    let json_data: Vec<Tracks> = serde_json::from_str(&data).expect("Unable to read file");
 
-//     let connection = &mut establish_connection_pg();
-//     if let Some(pres) = json_data.as_array() {
-//         for presence in pres {
-//             // Presence {
-//             //         id: presence["id"].to_string(),
-//             //         id_str: presence["id_str"].to_string(),
-//             //         typ: presence["type"].to_string(),
-//             //         connection_id: presence["connection_id"].to_string(),
-//             //         fullreason: presence["fullreason"].to_string(),
-//             //         cs: presence["cs"].to_string(),
-//             //         ip: presence["ip"].to_string(),
-//             //         protocol: presence["protocol"].to_string(),
-//             //         reason: presence["reason"].to_string(),
-//             //         asset: presence["asset"].to_string(),
-//             //         time: presence["time"].to_string(),
-//             //     }
-//         }
-//     }
-// }
+    let client_uri =
+        env::var("MONGODB_URI").expect("You must set the MONGODB_URI environment var!");
+
+    let options =
+        ClientOptions::parse_with_resolver_config(&client_uri, ResolverConfig::cloudflare())
+            .await?;
+    let client = Client::with_options(options)?;
+
+    let collection = client.database("munic").collection("tracks");
+
+    for track in json_data {
+        collection.insert_one(track, None).await;
+    }
+    Ok(())
+}
 
 fn print_type_of<T>(_: &T) {
     println!("{}", std::any::type_name::<T>())
