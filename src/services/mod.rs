@@ -58,10 +58,20 @@ async fn send_presence(
     >,
     url: &String,
 ) -> () {
+    use std::collections::HashMap;
     let mut ten_minutes = time::interval(Duration::from_secs(5));
     loop {
         ten_minutes.tick().await;
-        println!("heello");
+        println!("sending ...");
+        let client = reqwest::Client::new();
+        let mut map = HashMap::new();
+        map.insert("lang", "rust");
+        map.insert("body", "json");
+        let res = client.post(url).json(&map).send().await;
+        match res {
+            Ok(a) => continue,
+            Err(err) => break,
+        }
     }
 }
 
@@ -72,9 +82,7 @@ pub fn index() -> Template {
 
 #[get("/store_presence")]
 pub async fn store_p() -> Template {
-    tokio::spawn(async move {
-        store_presence().await;
-    });
+    store_presence().await;
     Template::render("index", context! {msg:"Stored Successfully"})
 }
 
@@ -89,7 +97,7 @@ async fn store_presence() -> Result<(), Box<dyn Error>> {
 
     let data = fs::read_to_string("./presence.json").expect("Unable to read file");
 
-    let json_data: serde_json::Value = serde_json::from_str(&data).expect("Unable to read file");
+    let json_data: Vec<Presence> = serde_json::from_str(&data).expect("Unable to read file");
 
     let client_uri =
         env::var("MONGODB_URI").expect("You must set the MONGODB_URI environment var!");
@@ -101,27 +109,8 @@ async fn store_presence() -> Result<(), Box<dyn Error>> {
 
     let collection = client.database("munic").collection("presences");
 
-    if let Some(pres) = json_data.as_array() {
-        for presence in pres {
-            collection
-                .insert_one(
-                    Presence {
-                        id: presence["id"].to_string(),
-                        id_str: presence["id_str"].to_string(),
-                        typ: presence["type"].to_string(),
-                        connection_id: presence["connection_id"].to_string(),
-                        fullreason: presence["fullreason"].to_string(),
-                        cs: presence["cs"].to_string(),
-                        ip: presence["ip"].to_string(),
-                        protocol: presence["protocol"].to_string(),
-                        reason: presence["reason"].to_string(),
-                        asset: presence["asset"].to_string(),
-                        time: presence["time"].to_string(),
-                    },
-                    None,
-                )
-                .await;
-        }
+    for presence in json_data {
+        collection.insert_one(presence, None).await;
     }
     Ok(())
 }
@@ -163,15 +152,6 @@ fn print_type_of<T>(_: &T) {
     println!("{}", std::any::type_name::<T>())
 }
 
-// pub fn establish_connection_mongodb() -> PgConnection {
-//     let mut client_options = ClientOptions::parse("mongodb://localhost:27017").await?;
-
-//     client_options.app_name = Some("MunicSimulator".to_string());
-//     let client = Client::with_options(client_options)?;
-//     let db = client.database("Munic");
-//     db
-// }
-
 fn ping_server(url: String) -> bool {
     use dns_lookup::lookup_host;
     use winping::{Buffer, Pinger};
@@ -194,6 +174,7 @@ pub struct UserInput {
     lat: String,
     url: String,
 }
+
 fn base_url(mut url: Url) -> Result<Url, ParseError> {
     match url.path_segments_mut() {
         Ok(mut path) => {

@@ -4,16 +4,16 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Presence {
-    pub id: String,
-    pub id_str: String,
+    pub id: i64,
+    pub id_str: Option<String>,
     #[serde(rename(serialize = "type", deserialize = "type"))]
-    pub typ: String,
-    pub connection_id: String,
-    pub fullreason: String,
-    pub cs: String,
-    pub ip: String,
-    pub protocol: String,
-    pub reason: String,
-    pub asset: String,
-    pub time: String,
+    pub typ: Option<String>,
+    pub connection_id: i64,
+    pub fullreason: Option<String>,
+    pub cs: Option<String>,
+    pub ip: Option<String>,
+    pub protocol: Option<String>,
+    pub reason: Option<String>,
+    pub asset: Option<String>,
+    pub time: Option<String>,
 }
