@@ -2,7 +2,7 @@
 
 extern crate chrono;
 extern crate rocket;
-use crate::models;
+use crate::models::{self, Tracks};
 
 use mongodb::{
     options::{ClientOptions, ResolverConfig},
@@ -106,14 +106,58 @@ pub async fn test() -> () {
     let durations = &json_data.duration.text;
     let distance = &json_data.distance.text;
 
-    for step in &json_data.steps {
-        let result = polyline::decode_polyline(&step.polyline.points, 5).unwrap();
-        let mut count = 0;
-        for coord in result {
-            count = count + 1;
+    use dotenvy::dotenv;
+    use mongodb::bson::doc;
+    use mongodb::options::ClientOptions;
+    use tokio_stream::StreamExt;
+    dotenv().ok();
+
+    let client_uri =
+        env::var("MONGODB_URI").expect("You must set the MONGODB_URI environment var!");
+
+    let options =
+        ClientOptions::parse_with_resolver_config(&client_uri, ResolverConfig::cloudflare())
+            .await
+            .unwrap();
+    let client = mongodb::Client::with_options(options).unwrap();
+
+    let tracks = client.database("munic").collection::<Tracks>("tracks");
+
+    let pipeline = vec![
+        doc! {
+          "$match": {
+            "fields.gps_dir":  {"$ne": null}
+          }
+        },
+        doc! {"$addFields": { "date": { "$toDate": "$recorded_at" } }  },
+        doc! {"$sort": { "date" : 1 }},
+    ];
+
+    let data = tracks
+        .aggregate(pipeline, None)
+        .await
+        .map_err(|e| println!("{}", e));
+
+    match data {
+        Ok(mut cursor) => {
+            while let Some(doc) = cursor.next().await {
+                println!("{:#?}", doc.unwrap())
+            }
         }
+        Err(e) => println!("{:#?}", e),
+    };
+
+    for step in &json_data.steps {
         use substring::Substring;
         use tokio::time::Duration;
+
+        let result = polyline::decode_polyline(&step.polyline.points, 5).unwrap();
+        let mut count = 0;
+
+        for coord in &result {
+            count = count + 1;
+        }
+
         let c: char = ' ';
         let mut ten_minutes = time::interval(
             Duration::from_secs_f64(
@@ -129,7 +173,34 @@ pub async fn test() -> () {
             .unwrap(),
         );
 
-        ten_minutes.tick().await;
+        for coord in &result {
+            ten_minutes.tick().await;
+            println!("sending ...");
+            let client = reqwest::Client::new();
+
+            let res = client
+                .post("http://127.0.0.1:5000/simulate")
+                .json(&Tracks {
+                    id: 1,
+                    id_str: Some("1".to_string()),
+                    location: Some([coord.x, coord.y]),
+                    loc: Some([coord.x, coord.y]),
+                    asset: Some("".to_string()),
+                    recorded_at: Some("".to_string()),
+                    recorded_at_ms: Some("".to_string()),
+                    received_at: Some("".to_string()),
+                    connection_id: 1,
+                    index: 1,
+                    fields: None,
+                    url: Some("".to_string()),
+                })
+                .send()
+                .await;
+            match res {
+                Ok(a) => continue,
+                Err(err) => break,
+            }
+        }
 
         // println!(
         //     "{:#?} {} {}",
@@ -149,6 +220,44 @@ pub async fn test() -> () {
         //     count
         // );
     }
+}
+
+pub async fn test2() -> () {
+    use dotenvy::dotenv;
+    use mongodb::bson::doc;
+    use mongodb::options::ClientOptions;
+    use tokio_stream::StreamExt;
+    dotenv().ok();
+
+    let client_uri =
+        env::var("MONGODB_URI").expect("You must set the MONGODB_URI environment var!");
+
+    let options =
+        ClientOptions::parse_with_resolver_config(&client_uri, ResolverConfig::cloudflare())
+            .await
+            .unwrap();
+    let client = mongodb::Client::with_options(options).unwrap();
+
+    let tracks = client.database("munic").collection::<Tracks>("tracks");
+
+    let pipeline = vec![
+        doc! {"$addFields": { "date": { "$toDate": "$recorded_at" } }  },
+        doc! {"$sort": { "date" : 1 }},
+    ];
+
+    let data = tracks
+        .aggregate(pipeline, None)
+        .await
+        .map_err(|e| println!("{}", e));
+
+    match data {
+        Ok(mut cursor) => {
+            while let Some(doc) = cursor.next().await {
+                println!("{:#?}", doc.unwrap())
+            }
+        }
+        Err(e) => println!("{:#?}", e),
+    };
 }
 
 #[get("/")]
@@ -196,10 +305,8 @@ async fn store_presence() -> Result<(), Box<dyn Error + Send + Sync>> {
 
 async fn store_tracks() -> Result<(), Box<dyn Error + Send + Sync>> {
     use dotenvy::dotenv;
-    use models::Tracks;
-    use std::fs;
-
     dotenv().ok();
+    use std::fs;
 
     let data = fs::read_to_string("./tracks.json").expect("Unable to read file");
 
