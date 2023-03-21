@@ -6,13 +6,13 @@ use crate::models::{self, Tracks};
 
 use mongodb::{
     options::{ClientOptions, ResolverConfig},
-    Client,
+    Client, Cursor,
 };
 use std::env;
 use std::error::Error;
 
-use rocket::form::Form;
 use rocket::FromForm;
+use rocket::{form::Form, http::ext::IntoCollection};
 use rocket::{get, post};
 use rocket_dyn_templates::{context, Template};
 use tokio::time::{self, Duration};
@@ -121,31 +121,69 @@ pub async fn test() -> () {
             .unwrap();
     let client = mongodb::Client::with_options(options).unwrap();
 
-    let tracks = client.database("munic").collection::<Tracks>("tracks");
+    let tracks_collection = client.database("munic").collection::<Tracks>("tracks");
+
+    // counting how many records
+    let mut number_of_records_needed = 0;
+
+    for step in &json_data.steps {
+        let result = polyline::decode_polyline(&step.polyline.points, 5).unwrap();
+
+        for coord in &result {
+            number_of_records_needed = number_of_records_needed + 1;
+        }
+    }
 
     let pipeline = vec![
         doc! {
-          "$match": {
-            "fields.gps_dir":  {"$ne": null}
-          }
+            "$match": {
+                "$or":[{"fields.gps_dir":  {"$ne": null}
+                         },{
+                           "fields.gps_altitude":  {"$ne": null}
+                         },{
+                           "fields.gps_hdop":  {"$ne": null}
+                         },{
+                           "fields.gps_pdop":  {"$ne": null}
+                         },{
+                           "fields.gps_vdop":  {"$ne": null}
+                         }, {
+                           "fields.gps_average_pdop_status":  {"$ne": null}
+                         },{
+                           "fields.gps_speed":  {"$ne": null}
+                         }] }
         },
+        doc! { "$sample": { "size": number_of_records_needed } },
         doc! {"$addFields": { "date": { "$toDate": "$recorded_at" } }  },
         doc! {"$sort": { "date" : 1 }},
     ];
 
-    let data = tracks
+    let data = tracks_collection
         .aggregate(pipeline, None)
         .await
-        .map_err(|e| println!("{}", e));
+        .map_err(|e| println!("{}", e))
+        .unwrap();
 
-    match data {
-        Ok(mut cursor) => {
-            while let Some(doc) = cursor.next().await {
-                println!("{:#?}", doc.unwrap())
-            }
-        }
-        Err(e) => println!("{:#?}", e),
-    };
+    use bson::{bson, Bson, Document};
+    use futures::stream::TryStreamExt;
+
+    let tracks: Vec<_> = data
+        .try_collect()
+        .await
+        .map_err(|e| println!("{}", e))
+        .unwrap();
+
+    let mut index = 0;
+
+    // println!("{:#?}", tracks[index].get_i64("id").unwrap() as i64);
+
+    // match data {
+    //     Ok(mut cursor) => {
+    //         while let Some(doc) = cursor.next().await {
+    //             println!("{:#?}", doc.unwrap())
+    //         }
+    //     }
+    //     Err(e) => println!("{:#?}", e),
+    // };
 
     for step in &json_data.steps {
         use substring::Substring;
@@ -181,21 +219,24 @@ pub async fn test() -> () {
             let res = client
                 .post("http://127.0.0.1:5000/simulate")
                 .json(&Tracks {
-                    id: 1,
-                    id_str: Some("1".to_string()),
+                    id: tracks[index].get_i64("id").unwrap() as i64,
+                    id_str: Some(tracks[index].get_str("id_str").unwrap().to_string()),
                     location: Some([coord.x, coord.y]),
                     loc: Some([coord.x, coord.y]),
-                    asset: Some("".to_string()),
-                    recorded_at: Some("".to_string()),
-                    recorded_at_ms: Some("".to_string()),
-                    received_at: Some("".to_string()),
-                    connection_id: 1,
-                    index: 1,
+                    asset: Some(tracks[index].get_str("asset").unwrap().to_string()),
+                    recorded_at: Some(tracks[index].get_str("recorded_at").unwrap().to_string()),
+                    recorded_at_ms: Some(
+                        tracks[index].get_str("recorded_at_ms").unwrap().to_string(),
+                    ),
+                    received_at: Some(tracks[index].get_str("received_at").unwrap().to_string()),
+                    connection_id: tracks[index].get_i64("connection_id").unwrap() as i64,
+                    index: tracks[index].get_i64("index").unwrap() as i64,
                     fields: None,
-                    url: Some("".to_string()),
+                    url: Some(tracks[index].get_str("url").unwrap().to_string()),
                 })
                 .send()
                 .await;
+            index = index + 1;
             match res {
                 Ok(a) => continue,
                 Err(err) => break,
