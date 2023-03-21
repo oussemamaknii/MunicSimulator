@@ -4,6 +4,7 @@ extern crate chrono;
 extern crate rocket;
 use crate::models::{self, Tracks};
 
+use models::Fields;
 use mongodb::{
     options::{ClientOptions, ResolverConfig},
     Client, Cursor,
@@ -174,8 +175,6 @@ pub async fn test() -> () {
 
     let mut index = 0;
 
-    // println!("{:#?}", tracks[index].get_i64("id").unwrap() as i64);
-
     // match data {
     //     Ok(mut cursor) => {
     //         while let Some(doc) = cursor.next().await {
@@ -216,24 +215,25 @@ pub async fn test() -> () {
             println!("sending ...");
             let client = reqwest::Client::new();
 
+            let json = &Tracks {
+                id: tracks[index].get_i64("id").unwrap() as i64,
+                id_str: Some(tracks[index].get_str("id_str").unwrap().to_string()),
+                location: Some([coord.x, coord.y]),
+                loc: Some([coord.x, coord.y]),
+                asset: Some(tracks[index].get_str("asset").unwrap().to_string()),
+                recorded_at: Some(tracks[index].get_str("recorded_at").unwrap().to_string()),
+                recorded_at_ms: Some(tracks[index].get_str("recorded_at_ms").unwrap().to_string()),
+                received_at: Some(tracks[index].get_str("received_at").unwrap().to_string()),
+                connection_id: tracks[index].get_i64("connection_id").unwrap() as i64,
+                index: tracks[index].get_i64("index").unwrap() as i64,
+                fields: Some(Fields::from(tracks[index].get_document("fields").unwrap())),
+                url: Some(tracks[index].get_str("url").unwrap().to_string()),
+            };
+            // println!("{:#?}", json);
+
             let res = client
                 .post("http://127.0.0.1:5000/simulate")
-                .json(&Tracks {
-                    id: tracks[index].get_i64("id").unwrap() as i64,
-                    id_str: Some(tracks[index].get_str("id_str").unwrap().to_string()),
-                    location: Some([coord.x, coord.y]),
-                    loc: Some([coord.x, coord.y]),
-                    asset: Some(tracks[index].get_str("asset").unwrap().to_string()),
-                    recorded_at: Some(tracks[index].get_str("recorded_at").unwrap().to_string()),
-                    recorded_at_ms: Some(
-                        tracks[index].get_str("recorded_at_ms").unwrap().to_string(),
-                    ),
-                    received_at: Some(tracks[index].get_str("received_at").unwrap().to_string()),
-                    connection_id: tracks[index].get_i64("connection_id").unwrap() as i64,
-                    index: tracks[index].get_i64("index").unwrap() as i64,
-                    fields: None,
-                    url: Some(tracks[index].get_str("url").unwrap().to_string()),
-                })
+                .json(json)
                 .send()
                 .await;
             index = index + 1;
