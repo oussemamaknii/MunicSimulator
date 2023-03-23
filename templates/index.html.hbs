@@ -7,6 +7,16 @@
   <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.4.1/css/all.css"
     integrity="sha384-5sAR7xN1Nv6T6+dT2mhtzEpVJvfS3NScPQTrOxhwjIuvcA67KV2R5Jz6kr4abQsz" crossorigin="anonymous">
   <style>
+#http {display:inline-block;} 
+
+    .logged-in {display:inline-block;margin-right:10px;
+      color: green;
+    }
+
+    .logged-out {display:inline-block;margin-right:10px;
+      color: red;
+    }
+
     html,
     body {
       display: flex;
@@ -83,12 +93,15 @@
         <label><strong>Your URL :</strong></label>
         <input name="url" id="url" type="text" placeholder="Enter your Notification URL" required>
         <p>{{ msg }}</p>
-        <p id="http"></p>
+        
+        <div id="http-div">
+          <span class="logged-in" id="newSpan">●</span> <p id="http"></p>
+        </div> 
 
         <h1>Coordinates</h1>
-        <label><strong>Latitude</strong></label>
+        <label><strong>Source</strong></label>
         <input name="lat" id="lat" type="text" placeholder="Enter Source Location" required>
-        <label><strong>Longitude</strong></label>
+        <label><strong>Destination</strong></label>
         <input name="lon" id="lon" type="text" placeholder="Enter Destination Location" required>
       </div>
       <button type="submit" id="button"><strong>Simulate !!</strong></button>
@@ -99,26 +112,29 @@
   const selectElement = document.getElementById("url");
   const button1 = document.getElementById("button");
   const http = document.getElementById("http");
+  const http_div = document.getElementById("http-div");
+  const newSpan = document.getElementById("newSpan");
   const evtSource = new EventSource("/events");
 
   console.log(evtSource.withCredentials);
   console.log(evtSource.readyState);
   console.log(evtSource.url);
-  
-  evtSource.onopen = function() {
+
+  evtSource.onopen = function () {
     console.log("Connection to server opened.");
   };
 
-  evtSource.onmessage = function(e) {
-    console.log(e.data);
-
-    if(e.data == 1)
-      {http.textContent = "HTTP Request Status : 200";}
-    else
-      {http.textContent = "HTTP Request Status : 500";}
+  evtSource.onmessage = function (e) {
+    if (e.data == 1) {
+      newSpan.setAttribute('class', 'logged-in');
+      http.textContent = "HTTP Request Status : 200";
+    }
+    else {
+      newSpan.setAttribute('class', 'logged-out');
+      http.textContent = "HTTP Request Status : 500"; }
   };
 
-  evtSource.onerror = function() {
+  evtSource.onerror = function () {
     console.log("EventSource failed.");
   };
 
