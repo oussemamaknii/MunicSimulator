@@ -71,6 +71,8 @@
       padding-right: 15px;
     }
   </style>
+  <script type="text/javascript">
+  </script>
 </head>
 
 <body>
@@ -81,12 +83,13 @@
         <label><strong>Your URL :</strong></label>
         <input name="url" id="url" type="text" placeholder="Enter your Notification URL" required>
         <p>{{ msg }}</p>
+        <p id="http"></p>
 
         <h1>Coordinates</h1>
         <label><strong>Latitude</strong></label>
-        <input name="lat" id="lat" type="text" placeholder="Enter Latitude" required>
+        <input name="lat" id="lat" type="text" placeholder="Enter Source Location" required>
         <label><strong>Longitude</strong></label>
-        <input name="lon" id="lon" type="text" placeholder="Enter Longitude" required>
+        <input name="lon" id="lon" type="text" placeholder="Enter Destination Location" required>
       </div>
       <button type="submit" id="button"><strong>Simulate !!</strong></button>
   </form>
@@ -95,7 +98,30 @@
 <script type="text/javascript">
   const selectElement = document.getElementById("url");
   const button1 = document.getElementById("button");
+  const http = document.getElementById("http");
+  const evtSource = new EventSource("/events");
+
+  console.log(evtSource.withCredentials);
+  console.log(evtSource.readyState);
+  console.log(evtSource.url);
   
+  evtSource.onopen = function() {
+    console.log("Connection to server opened.");
+  };
+
+  evtSource.onmessage = function(e) {
+    console.log(e.data);
+
+    if(e.data == 1)
+      {http.textContent = "HTTP Request Status : 200";}
+    else
+      {http.textContent = "HTTP Request Status : 500";}
+  };
+
+  evtSource.onerror = function() {
+    console.log("EventSource failed.");
+  };
+
   selectElement.addEventListener("input", (event) => {
     button1.disabled = !validator.isURL(event.target.value);
   });

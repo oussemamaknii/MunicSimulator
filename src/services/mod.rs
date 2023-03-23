@@ -3,12 +3,15 @@
 extern crate chrono;
 extern crate rocket;
 use crate::models::{self, Tracks};
+use rocket::response::stream::{Event, EventStream};
+use rocket::tokio::sync::broadcast::{channel, error::RecvError, Sender};
 
-use models::Fields;
+use models::{event, req, Fields};
 use mongodb::{
     options::{ClientOptions, ResolverConfig},
     Client, Cursor,
 };
+use serde::Deserialize;
 use std::env;
 use std::error::Error;
 
@@ -18,6 +21,18 @@ use rocket::{get, post};
 use rocket_dyn_templates::{context, Template};
 use tokio::time::{self, Duration};
 use url::{ParseError, Url};
+
+use core::sync::atomic::{AtomicUsize, Ordering};
+
+static state: AtomicUsize = AtomicUsize::new(0);
+
+pub fn set_value(val: usize) {
+    state.store(val, Ordering::Relaxed)
+}
+
+pub fn get_value() -> usize {
+    state.load(Ordering::Relaxed)
+}
 
 #[post("/simulate", data = "<user_input>")]
 pub fn simulate(user_input: Form<UserInput>) -> Template {
@@ -39,8 +54,8 @@ pub fn simulate(user_input: Form<UserInput>) -> Template {
                     GoogleMapsClient::new("AIzaSyAo1agGjrUSZhLwPydiX-_dJ-CEQkxoRmU");
                 let directions = google_maps_client
                     .directions(
-                        Location::Address(String::from("ariana, tunisie")),
-                        Location::Address(String::from("marsa tunisie")),
+                        Location::Address(String::from(new_user_input.lat)),
+                        Location::Address(String::from(new_user_input.lon)),
                         // Location::LatLng(LatLng::try_from_f64(45.403_509, -75.618_904).unwrap()),
                     )
                     .with_travel_mode(TravelMode::Driving)
@@ -68,20 +83,160 @@ async fn send_presence(
     >,
     url: &String,
 ) -> () {
-    use std::collections::HashMap;
-    let mut ten_minutes = time::interval(Duration::from_secs(5));
+    use google_maps::prelude::*;
+    use polyline;
 
-    loop {
-        ten_minutes.tick().await;
-        println!("sending ...");
-        let client = reqwest::Client::new();
-        let mut map = HashMap::new();
-        map.insert("lang", "rust");
-        map.insert("body", "json");
-        let res = client.post(url).json(&map).send().await;
-        match res {
-            Ok(a) => continue,
-            Err(err) => break,
+    let json_data = &directions.unwrap().routes[0].legs[0];
+
+    let durations = &json_data.duration.text;
+    let distance = &json_data.distance.text;
+
+    use dotenvy::dotenv;
+    use mongodb::bson::doc;
+    use mongodb::options::ClientOptions;
+    use tokio_stream::StreamExt;
+    dotenv().ok();
+
+    let client_uri =
+        env::var("MONGODB_URI").expect("You must set the MONGODB_URI environment var!");
+
+    let options =
+        ClientOptions::parse_with_resolver_config(&client_uri, ResolverConfig::cloudflare())
+            .await
+            .unwrap();
+    let client = mongodb::Client::with_options(options).unwrap();
+
+    let tracks_collection = client.database("munic").collection::<Tracks>("tracks");
+
+    // counting how many records
+    let mut number_of_records_needed = 0;
+
+    for step in &json_data.steps {
+        let result = polyline::decode_polyline(&step.polyline.points, 5).unwrap();
+
+        for coord in &result {
+            number_of_records_needed = number_of_records_needed + 1;
+        }
+    }
+
+    let pipeline = vec![
+        doc! {
+            "$match": {
+                "$or":[{"fields.gps_dir":  {"$ne": null}
+                         },{
+                           "fields.gps_altitude":  {"$ne": null}
+                         },{
+                           "fields.gps_hdop":  {"$ne": null}
+                         },{
+                           "fields.gps_pdop":  {"$ne": null}
+                         },{
+                           "fields.gps_vdop":  {"$ne": null}
+                         }, {
+                           "fields.gps_average_pdop_status":  {"$ne": null}
+                         },{
+                           "fields.gps_speed":  {"$ne": null}
+                         }] }
+        },
+        doc! { "$sample": { "size": number_of_records_needed } },
+        doc! {"$addFields": { "date": { "$toDate": "$recorded_at" } }  },
+        doc! {"$sort": { "date" : 1 }},
+    ];
+
+    let data = tracks_collection
+        .aggregate(pipeline, None)
+        .await
+        .map_err(|e| println!("{}", e))
+        .unwrap();
+
+    use bson::{bson, Bson, Document};
+    use futures::stream::TryStreamExt;
+
+    let tracks: Vec<_> = data
+        .try_collect()
+        .await
+        .map_err(|e| println!("{}", e))
+        .unwrap();
+
+    let mut index = 0;
+
+    'outer: for step in &json_data.steps {
+        use substring::Substring;
+        use tokio::time::Duration;
+
+        let result = polyline::decode_polyline(&step.polyline.points, 5).unwrap();
+        let mut count = 0;
+
+        for coord in &result {
+            count = count + 1;
+        }
+
+        let c: char = ' ';
+        let mut ten_minutes = time::interval(
+            Duration::from_secs_f64(
+                (((step.duration.text)
+                    .to_string()
+                    .substring(0, (step.duration.text).find(' ').unwrap())
+                    .parse::<u64>()
+                    .unwrap())
+                    * 60) as f64
+                    / count as f64,
+            )
+            .try_into()
+            .unwrap(),
+        );
+
+        for coord in &result {
+            ten_minutes.tick().await;
+            println!("sending ...");
+            let client = reqwest::Client::new();
+
+            use chrono::prelude::*;
+            use chrono::Duration;
+            use chrono::{DateTime, Local, TimeZone};
+
+            let trk = Tracks {
+                id: tracks[index].get_i64("id").unwrap() as i64,
+                id_str: Some(tracks[index].get_str("id_str").unwrap().to_string()),
+                location: Some([coord.x, coord.y]),
+                loc: Some([coord.x, coord.y]),
+                asset: Some(tracks[index].get_str("asset").unwrap().to_string()),
+                recorded_at: Some(
+                    (Local::now() - Duration::minutes(2))
+                        .format("%Y-%m-%dT%H:%M:%SZ")
+                        .to_string(),
+                ),
+                recorded_at_ms: Some(
+                    (Local::now() - Duration::minutes(2))
+                        .format("%Y-%m-%dT%H:%M:%S%.3fZ")
+                        .to_string(),
+                ),
+                received_at: Some((Local::now()).format("%Y-%m-%dT%H:%M:%SZ").to_string()),
+                connection_id: tracks[index].get_i64("connection_id").unwrap() as i64,
+                index: tracks[index].get_i64("index").unwrap() as i64,
+                fields: Some(Fields::from(tracks[index].get_document("fields").unwrap())),
+                url: Some(tracks[index].get_str("url").unwrap().to_string()),
+            };
+
+            let x: req<Tracks> = req {
+                meta: event {
+                    event: "track".to_string(),
+                    account: "municio".to_string(),
+                },
+                payload: trk,
+            };
+
+            let res = client.post(url).json(&x).send().await;
+            index = index + 1;
+            match res {
+                Ok(a) => {
+                    set_value(1);
+                    continue;
+                }
+                Err(err) => {
+                    set_value(0);
+                    break 'outer;
+                }
+            }
         }
     }
 }
@@ -184,7 +339,7 @@ pub async fn test() -> () {
     //     Err(e) => println!("{:#?}", e),
     // };
 
-    for step in &json_data.steps {
+    'outer: for step in &json_data.steps {
         use substring::Substring;
         use tokio::time::Duration;
 
@@ -215,51 +370,69 @@ pub async fn test() -> () {
             println!("sending ...");
             let client = reqwest::Client::new();
 
-            let json = &Tracks {
+            use chrono::prelude::*;
+            use chrono::Duration;
+            use chrono::{DateTime, Local, TimeZone};
+
+            let trk = Tracks {
                 id: tracks[index].get_i64("id").unwrap() as i64,
                 id_str: Some(tracks[index].get_str("id_str").unwrap().to_string()),
                 location: Some([coord.x, coord.y]),
                 loc: Some([coord.x, coord.y]),
                 asset: Some(tracks[index].get_str("asset").unwrap().to_string()),
-                recorded_at: Some(tracks[index].get_str("recorded_at").unwrap().to_string()),
-                recorded_at_ms: Some(tracks[index].get_str("recorded_at_ms").unwrap().to_string()),
-                received_at: Some(tracks[index].get_str("received_at").unwrap().to_string()),
+                recorded_at: Some(
+                    (Local::now() - Duration::minutes(2))
+                        .format("%Y-%m-%dT%H:%M:%SZ")
+                        .to_string(),
+                ),
+                recorded_at_ms: Some(
+                    (Local::now() - Duration::minutes(2))
+                        .format("%Y-%m-%dT%H:%M:%S%.3fZ")
+                        .to_string(),
+                ),
+                received_at: Some((Local::now()).format("%Y-%m-%dT%H:%M:%SZ").to_string()),
                 connection_id: tracks[index].get_i64("connection_id").unwrap() as i64,
                 index: tracks[index].get_i64("index").unwrap() as i64,
                 fields: Some(Fields::from(tracks[index].get_document("fields").unwrap())),
                 url: Some(tracks[index].get_str("url").unwrap().to_string()),
             };
-            // println!("{:#?}", json);
+
+            let x: Vec<req<Tracks>> = vec![req {
+                meta: event {
+                    account: "municio".to_string(),
+                    event: "track".to_string(),
+                },
+                payload: trk,
+            }];
 
             let res = client
-                .post("http://127.0.0.1:5000/simulate")
-                .json(json)
+                .post("http://localhost:5000/simulate")
+                .json(&x)
                 .send()
                 .await;
             index = index + 1;
             match res {
-                Ok(a) => continue,
-                Err(err) => break,
+                Ok(a) => {
+                    set_value(1);
+                    continue;
+                }
+                Err(err) => {
+                    set_value(0);
+                    break 'outer;
+                }
             }
         }
+    }
+}
 
-        // println!(
-        //     "{:#?} {} {}",
-        //     (((step.duration.text)
-        //         .to_string()
-        //         .substring(0, (step.duration.text).find(' ').unwrap())
-        //         .parse::<u64>()
-        //         .unwrap())
-        //         * 60) as f32
-        //         / count as f32,
-        //     (((step.duration.text)
-        //         .to_string()
-        //         .substring(0, (step.duration.text).find(' ').unwrap())
-        //         .parse::<u64>()
-        //         .unwrap())
-        //         * 60),
-        //     count
-        // );
+#[get("/events")]
+pub fn stream() -> EventStream![] {
+    EventStream! {
+        let mut interval = time::interval(Duration::from_secs(2));
+        loop {
+            yield Event::data(get_value().to_string());
+            interval.tick().await;
+        }
     }
 }
 

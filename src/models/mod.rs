@@ -38,6 +38,18 @@ pub struct Presence {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct req<T> {
+    pub meta: event,
+    pub payload: T,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct event {
+    pub account: String,
+    pub event: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Tracks {
     pub id: i64,
 
@@ -55,7 +67,9 @@ pub struct Tracks {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub received_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub loc: Option<[f64; 2]>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub location: Option<[f64; 2]>,
     pub connection_id: i64,
     pub index: i64,

@@ -15,6 +15,7 @@ fn rocket() -> _ {
                 services::store_p,
                 services::store_t,
                 services::test,
+                services::stream
             ],
         )
         .attach(Template::fairing())
