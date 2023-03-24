@@ -3,6 +3,7 @@
 extern crate chrono;
 extern crate rocket;
 use crate::models::{self, Tracks};
+use reqwest::Response;
 use rocket::response::stream::{Event, EventStream};
 use rocket::tokio::sync::broadcast::{channel, error::RecvError, Sender};
 
@@ -62,7 +63,7 @@ pub fn simulate(user_input: Form<UserInput>) -> Template {
                     .execute()
                     .await;
 
-                send_presence(directions, &new_user_input.url.clone()).await;
+                send_tracks(directions, &new_user_input.url.clone()).await;
                 println!("Work Done !")
             });
 
@@ -76,7 +77,7 @@ pub fn simulate(user_input: Form<UserInput>) -> Template {
     Template::render("index", context! {msg:"Ping missing pong ! check your URL"})
 }
 
-async fn send_presence(
+async fn send_tracks(
     directions: core::result::Result<
         google_maps::directions::response::Response,
         google_maps::directions::error::Error,
@@ -159,6 +160,8 @@ async fn send_presence(
 
     let mut index = 0;
 
+    let mut tracksArray: Vec<req<Tracks>> = vec![];
+
     'outer: for step in &json_data.steps {
         use substring::Substring;
         use tokio::time::Duration;
@@ -194,47 +197,132 @@ async fn send_presence(
             use chrono::Duration;
             use chrono::{DateTime, Local, TimeZone};
 
-            let trk = Tracks {
-                id: tracks[index].get_i64("id").unwrap() as i64,
-                id_str: Some(tracks[index].get_str("id_str").unwrap().to_string()),
-                location: Some([coord.x, coord.y]),
-                loc: Some([coord.x, coord.y]),
-                asset: Some(tracks[index].get_str("asset").unwrap().to_string()),
-                recorded_at: Some(
-                    (Local::now() - Duration::minutes(2))
-                        .format("%Y-%m-%dT%H:%M:%SZ")
-                        .to_string(),
-                ),
-                recorded_at_ms: Some(
-                    (Local::now() - Duration::minutes(2))
-                        .format("%Y-%m-%dT%H:%M:%S%.3fZ")
-                        .to_string(),
-                ),
-                received_at: Some((Local::now()).format("%Y-%m-%dT%H:%M:%SZ").to_string()),
-                connection_id: tracks[index].get_i64("connection_id").unwrap() as i64,
-                index: tracks[index].get_i64("index").unwrap() as i64,
-                fields: Some(Fields::from(tracks[index].get_document("fields").unwrap())),
-                url: Some(tracks[index].get_str("url").unwrap().to_string()),
-            };
-
-            let x: req<Tracks> = req {
-                meta: event {
-                    event: "track".to_string(),
-                    account: "municio".to_string(),
-                },
-                payload: trk,
-            };
-
-            let res = client.post(url).json(&x).send().await;
             index = index + 1;
-            match res {
-                Ok(a) => {
-                    set_value(1);
-                    continue;
+
+            let builder = {
+                if get_value() == 1 {
+                    client.post(url).json(&req {
+                        meta: event {
+                            event: "track".to_string(),
+                            account: "municio".to_string(),
+                        },
+                        payload: Tracks {
+                            id: tracks[index].get_i64("id").unwrap() as i64,
+                            id_str: Some(tracks[index].get_str("id_str").unwrap().to_string()),
+                            location: Some([coord.x, coord.y]),
+                            loc: Some([coord.x, coord.y]),
+                            asset: Some(tracks[index].get_str("asset").unwrap().to_string()),
+                            recorded_at: Some(
+                                (Local::now() - Duration::minutes(2))
+                                    .format("%Y-%m-%dT%H:%M:%SZ")
+                                    .to_string(),
+                            ),
+                            recorded_at_ms: Some(
+                                (Local::now() - Duration::minutes(2))
+                                    .format("%Y-%m-%dT%H:%M:%S%.3fZ")
+                                    .to_string(),
+                            ),
+                            received_at: Some(
+                                (Local::now()).format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+                            ),
+                            connection_id: tracks[index].get_i64("connection_id").unwrap() as i64,
+                            index: tracks[index].get_i64("index").unwrap() as i64,
+                            fields: Some(Fields::from(
+                                tracks[index].get_document("fields").unwrap(),
+                            )),
+                            url: Some(tracks[index].get_str("url").unwrap().to_string()),
+                        },
+                    })
+                } else {
+                    client.post(url).json(&tracksArray)
                 }
+            };
+            let res = builder.send().await;
+
+            match res {
+                Ok(a) => match get_value() {
+                    1 => continue,
+                    0 => tracksArray = vec![],
+                    _ => continue,
+                },
                 Err(err) => {
-                    set_value(0);
-                    break 'outer;
+                    match get_value() {
+                        1 => {
+                            tracksArray.push(req {
+                                meta: event {
+                                    event: "track".to_string(),
+                                    account: "municio".to_string(),
+                                },
+                                payload: Tracks {
+                                    id: tracks[index].get_i64("id").unwrap() as i64,
+                                    id_str: Some(
+                                        tracks[index].get_str("id_str").unwrap().to_string(),
+                                    ),
+                                    location: Some([coord.x, coord.y]),
+                                    loc: Some([coord.x, coord.y]),
+                                    asset: Some(
+                                        tracks[index].get_str("asset").unwrap().to_string(),
+                                    ),
+                                    recorded_at: Some(
+                                        (Local::now() - Duration::minutes(2))
+                                            .format("%Y-%m-%dT%H:%M:%SZ")
+                                            .to_string(),
+                                    ),
+                                    recorded_at_ms: Some(
+                                        (Local::now() - Duration::minutes(2))
+                                            .format("%Y-%m-%dT%H:%M:%S%.3fZ")
+                                            .to_string(),
+                                    ),
+                                    received_at: Some(
+                                        (Local::now()).format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+                                    ),
+                                    connection_id: tracks[index].get_i64("connection_id").unwrap()
+                                        as i64,
+                                    index: tracks[index].get_i64("index").unwrap() as i64,
+                                    fields: Some(Fields::from(
+                                        tracks[index].get_document("fields").unwrap(),
+                                    )),
+                                    url: Some(tracks[index].get_str("url").unwrap().to_string()),
+                                },
+                            });
+                            set_value(0);
+                        }
+                        0 => tracksArray.push(req {
+                            meta: event {
+                                event: "track".to_string(),
+                                account: "municio".to_string(),
+                            },
+                            payload: Tracks {
+                                id: tracks[index].get_i64("id").unwrap() as i64,
+                                id_str: Some(tracks[index].get_str("id_str").unwrap().to_string()),
+                                location: Some([coord.x, coord.y]),
+                                loc: Some([coord.x, coord.y]),
+                                asset: Some(tracks[index].get_str("asset").unwrap().to_string()),
+                                recorded_at: Some(
+                                    (Local::now() - Duration::minutes(2))
+                                        .format("%Y-%m-%dT%H:%M:%SZ")
+                                        .to_string(),
+                                ),
+                                recorded_at_ms: Some(
+                                    (Local::now() - Duration::minutes(2))
+                                        .format("%Y-%m-%dT%H:%M:%S%.3fZ")
+                                        .to_string(),
+                                ),
+                                received_at: Some(
+                                    (Local::now()).format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+                                ),
+                                connection_id: tracks[index].get_i64("connection_id").unwrap()
+                                    as i64,
+                                index: tracks[index].get_i64("index").unwrap() as i64,
+                                fields: Some(Fields::from(
+                                    tracks[index].get_document("fields").unwrap(),
+                                )),
+                                url: Some(tracks[index].get_str("url").unwrap().to_string()),
+                            },
+                        }),
+                        _ => continue,
+                    }
+                    // break 'outer;
                 }
             }
         }
@@ -330,6 +418,8 @@ pub async fn test() -> () {
 
     let mut index = 0;
 
+    let mut tracksArray: Vec<req<Tracks>> = vec![];
+
     // match data {
     //     Ok(mut cursor) => {
     //         while let Some(doc) = cursor.next().await {
@@ -374,51 +464,137 @@ pub async fn test() -> () {
             use chrono::Duration;
             use chrono::{DateTime, Local, TimeZone};
 
-            let trk = Tracks {
-                id: tracks[index].get_i64("id").unwrap() as i64,
-                id_str: Some(tracks[index].get_str("id_str").unwrap().to_string()),
-                location: Some([coord.x, coord.y]),
-                loc: Some([coord.x, coord.y]),
-                asset: Some(tracks[index].get_str("asset").unwrap().to_string()),
-                recorded_at: Some(
-                    (Local::now() - Duration::minutes(2))
-                        .format("%Y-%m-%dT%H:%M:%SZ")
-                        .to_string(),
-                ),
-                recorded_at_ms: Some(
-                    (Local::now() - Duration::minutes(2))
-                        .format("%Y-%m-%dT%H:%M:%S%.3fZ")
-                        .to_string(),
-                ),
-                received_at: Some((Local::now()).format("%Y-%m-%dT%H:%M:%SZ").to_string()),
-                connection_id: tracks[index].get_i64("connection_id").unwrap() as i64,
-                index: tracks[index].get_i64("index").unwrap() as i64,
-                fields: Some(Fields::from(tracks[index].get_document("fields").unwrap())),
-                url: Some(tracks[index].get_str("url").unwrap().to_string()),
-            };
+            let trk = index = index + 1;
 
-            let x: Vec<req<Tracks>> = vec![req {
-                meta: event {
-                    account: "municio".to_string(),
-                    event: "track".to_string(),
-                },
-                payload: trk,
-            }];
-
-            let res = client
-                .post("http://localhost:5000/simulate")
-                .json(&x)
-                .send()
-                .await;
-            index = index + 1;
-            match res {
-                Ok(a) => {
-                    set_value(1);
-                    continue;
+            let builder = {
+                if get_value() == 1 {
+                    client.post("http://localhost:5000/simulate").json(&req {
+                        meta: event {
+                            event: "track".to_string(),
+                            account: "municio".to_string(),
+                        },
+                        payload: Tracks {
+                            id: tracks[index].get_i64("id").unwrap() as i64,
+                            id_str: Some(tracks[index].get_str("id_str").unwrap().to_string()),
+                            location: Some([coord.x, coord.y]),
+                            loc: Some([coord.x, coord.y]),
+                            asset: Some(tracks[index].get_str("asset").unwrap().to_string()),
+                            recorded_at: Some(
+                                (Local::now() - Duration::minutes(2))
+                                    .format("%Y-%m-%dT%H:%M:%SZ")
+                                    .to_string(),
+                            ),
+                            recorded_at_ms: Some(
+                                (Local::now() - Duration::minutes(2))
+                                    .format("%Y-%m-%dT%H:%M:%S%.3fZ")
+                                    .to_string(),
+                            ),
+                            received_at: Some(
+                                (Local::now()).format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+                            ),
+                            connection_id: tracks[index].get_i64("connection_id").unwrap() as i64,
+                            index: tracks[index].get_i64("index").unwrap() as i64,
+                            fields: Some(Fields::from(
+                                tracks[index].get_document("fields").unwrap(),
+                            )),
+                            url: Some(tracks[index].get_str("url").unwrap().to_string()),
+                        },
+                    })
+                } else {
+                    client
+                        .post("http://localhost:5000/simulate")
+                        .json(&tracksArray)
                 }
+            };
+            let res = builder.send().await;
+
+            match res {
+                Ok(a) => match get_value() {
+                    1 => continue,
+                    0 => {
+                        tracksArray = vec![];
+                        set_value(1);
+                    }
+                    _ => continue,
+                },
                 Err(err) => {
-                    set_value(0);
-                    break 'outer;
+                    match get_value() {
+                        1 => {
+                            tracksArray.push(req {
+                                meta: event {
+                                    event: "track".to_string(),
+                                    account: "municio".to_string(),
+                                },
+                                payload: Tracks {
+                                    id: tracks[index].get_i64("id").unwrap() as i64,
+                                    id_str: Some(
+                                        tracks[index].get_str("id_str").unwrap().to_string(),
+                                    ),
+                                    location: Some([coord.x, coord.y]),
+                                    loc: Some([coord.x, coord.y]),
+                                    asset: Some(
+                                        tracks[index].get_str("asset").unwrap().to_string(),
+                                    ),
+                                    recorded_at: Some(
+                                        (Local::now() - Duration::minutes(2))
+                                            .format("%Y-%m-%dT%H:%M:%SZ")
+                                            .to_string(),
+                                    ),
+                                    recorded_at_ms: Some(
+                                        (Local::now() - Duration::minutes(2))
+                                            .format("%Y-%m-%dT%H:%M:%S%.3fZ")
+                                            .to_string(),
+                                    ),
+                                    received_at: Some(
+                                        (Local::now()).format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+                                    ),
+                                    connection_id: tracks[index].get_i64("connection_id").unwrap()
+                                        as i64,
+                                    index: tracks[index].get_i64("index").unwrap() as i64,
+                                    fields: Some(Fields::from(
+                                        tracks[index].get_document("fields").unwrap(),
+                                    )),
+                                    url: Some(tracks[index].get_str("url").unwrap().to_string()),
+                                },
+                            });
+                            set_value(0);
+                        }
+                        0 => tracksArray.push(req {
+                            meta: event {
+                                event: "track".to_string(),
+                                account: "municio".to_string(),
+                            },
+                            payload: Tracks {
+                                id: tracks[index].get_i64("id").unwrap() as i64,
+                                id_str: Some(tracks[index].get_str("id_str").unwrap().to_string()),
+                                location: Some([coord.x, coord.y]),
+                                loc: Some([coord.x, coord.y]),
+                                asset: Some(tracks[index].get_str("asset").unwrap().to_string()),
+                                recorded_at: Some(
+                                    (Local::now() - Duration::minutes(2))
+                                        .format("%Y-%m-%dT%H:%M:%SZ")
+                                        .to_string(),
+                                ),
+                                recorded_at_ms: Some(
+                                    (Local::now() - Duration::minutes(2))
+                                        .format("%Y-%m-%dT%H:%M:%S%.3fZ")
+                                        .to_string(),
+                                ),
+                                received_at: Some(
+                                    (Local::now()).format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+                                ),
+                                connection_id: tracks[index].get_i64("connection_id").unwrap()
+                                    as i64,
+                                index: tracks[index].get_i64("index").unwrap() as i64,
+                                fields: Some(Fields::from(
+                                    tracks[index].get_document("fields").unwrap(),
+                                )),
+                                url: Some(tracks[index].get_str("url").unwrap().to_string()),
+                            },
+                        }),
+                        _ => continue,
+                    }
+                    // break 'outer;
                 }
             }
         }
