@@ -25,7 +25,7 @@ use url::{ParseError, Url};
 
 use core::sync::atomic::{AtomicUsize, Ordering};
 
-static state: AtomicUsize = AtomicUsize::new(0);
+static state: AtomicUsize = AtomicUsize::new(1);
 
 pub fn set_value(val: usize) {
     state.store(val, Ordering::Relaxed)
@@ -166,7 +166,7 @@ async fn send_tracks(
         use substring::Substring;
         use tokio::time::Duration;
 
-        let result = polyline::decode_polyline(&step.polyline.points, 5).unwrap();
+        let result = polyline::decode_polyline(&step.polyline.points, 6).unwrap();
         let mut count = 0;
 
         for coord in &result {
@@ -198,6 +198,10 @@ async fn send_tracks(
             use chrono::{DateTime, Local, TimeZone};
 
             index = index + 1;
+
+            if tracksArray.len() == 10 {
+                break 'outer;
+            }
 
             let builder = {
                 if get_value() == 1 {
@@ -371,7 +375,7 @@ pub async fn test() -> () {
     let mut number_of_records_needed = 0;
 
     for step in &json_data.steps {
-        let result = polyline::decode_polyline(&step.polyline.points, 5).unwrap();
+        let result = polyline::decode_polyline(&step.polyline.points, 6).unwrap();
 
         for coord in &result {
             number_of_records_needed = number_of_records_needed + 1;
@@ -464,7 +468,11 @@ pub async fn test() -> () {
             use chrono::Duration;
             use chrono::{DateTime, Local, TimeZone};
 
-            let trk = index = index + 1;
+            index = index + 1;
+
+            if tracksArray.len() == 10 {
+                break 'outer;
+            }
 
             let builder = {
                 if get_value() == 1 {

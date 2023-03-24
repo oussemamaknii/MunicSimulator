@@ -24,6 +24,7 @@ polyline = "0.10.0"
 substring = "1.4.5"
 tokio-stream = "0.1.12"
 rust_socketio = "0.4.1"
+is_empty = "0.2.0"
 
 [dependencies.rocket_dyn_templates]
 features = ["handlebars"]
