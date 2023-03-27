@@ -381,19 +381,19 @@ pub async fn test() -> () {
     let pipeline = vec![
         doc! {
             "$match": {
-                "$or":[{"fields.GPS_DIR":  {"$ne": null}
+                "$or":[{"fields.gps_dir":  {"$ne": null}
                          },{
-                           "fields.GPS_ALTITUDE":  {"$ne": null}
+                           "fields.gps_altitude":  {"$ne": null}
                          },{
-                           "fields.GPS_HDOP":  {"$ne": null}
+                           "fields.gps_hdop":  {"$ne": null}
                          },{
-                           "fields.GPS_PDOP":  {"$ne": null}
+                           "fields.gps_pdop":  {"$ne": null}
                          },{
-                           "fields.GPS_VDOP":  {"$ne": null}
+                           "fields.gps_vdop":  {"$ne": null}
                          }, {
-                           "fields.GPS_AVERAGE_PDOP_STATUS":  {"$ne": null}
+                           "fields.gps_average_pdop_status":  {"$ne": null}
                          },{
-                           "fields.GPS_SPEED":  {"$ne": null}
+                           "fields.gps_speed":  {"$ne": null}
                          }] }
         },
         doc! { "$sample": { "size": number_of_records_needed } },

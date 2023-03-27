@@ -76,7 +76,7 @@ pub struct Tracks {
     pub connection_id: i64,
     pub index: i64,
 
-    #[serde(serialize_with = "serialize_fields")]
+    // #[serde(serialize_with = "serialize_fields")]
     pub fields: Fields,
 
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -89,9 +89,14 @@ where
 {
     let mut map = serializer.serialize_map(Some(f.map.len()))?;
     for (k, v) in f {
-        if !v.as_ref().is_empty() {
-            map.serialize_entry(k, v)?;
-        }
+        match v {
+            Some(e) => {
+                if e.b64_value != None {
+                    map.serialize_entry(k, v)?;
+                }
+            }
+            None => continue,
+        };
     }
     map.end()
 }
@@ -108,7 +113,7 @@ impl<'a> IntoIterator for &'a Fields {
 }
 
 #[derive(Debug, Deserialize)]
-#[serde(rename_all(serialize = "UPPERCASE", deserialize = "UPPERCASE"))]
+#[serde(rename_all(serialize = "lowercase", deserialize = "UPPERCASE"))]
 pub struct Fields {
     #[serde(skip_serializing)]
     #[serde(default)]
