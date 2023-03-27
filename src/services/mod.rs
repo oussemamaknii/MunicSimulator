@@ -231,9 +231,7 @@ async fn send_tracks(
                             ),
                             connection_id: tracks[index].get_i64("connection_id").unwrap() as i64,
                             index: tracks[index].get_i64("index").unwrap() as i64,
-                            fields: Some(Fields::from(
-                                tracks[index].get_document("fields").unwrap(),
-                            )),
+                            fields: Fields::from(tracks[index].get_document("fields").unwrap()),
                             url: Some(tracks[index].get_str("url").unwrap().to_string()),
                         },
                     })
@@ -283,9 +281,9 @@ async fn send_tracks(
                                     connection_id: tracks[index].get_i64("connection_id").unwrap()
                                         as i64,
                                     index: tracks[index].get_i64("index").unwrap() as i64,
-                                    fields: Some(Fields::from(
+                                    fields: Fields::from(
                                         tracks[index].get_document("fields").unwrap(),
-                                    )),
+                                    ),
                                     url: Some(tracks[index].get_str("url").unwrap().to_string()),
                                 },
                             });
@@ -318,9 +316,7 @@ async fn send_tracks(
                                 connection_id: tracks[index].get_i64("connection_id").unwrap()
                                     as i64,
                                 index: tracks[index].get_i64("index").unwrap() as i64,
-                                fields: Some(Fields::from(
-                                    tracks[index].get_document("fields").unwrap(),
-                                )),
+                                fields: Fields::from(tracks[index].get_document("fields").unwrap()),
                                 url: Some(tracks[index].get_str("url").unwrap().to_string()),
                             },
                         }),
@@ -385,19 +381,19 @@ pub async fn test() -> () {
     let pipeline = vec![
         doc! {
             "$match": {
-                "$or":[{"fields.gps_dir":  {"$ne": null}
+                "$or":[{"fields.GPS_DIR":  {"$ne": null}
                          },{
-                           "fields.gps_altitude":  {"$ne": null}
+                           "fields.GPS_ALTITUDE":  {"$ne": null}
                          },{
-                           "fields.gps_hdop":  {"$ne": null}
+                           "fields.GPS_HDOP":  {"$ne": null}
                          },{
-                           "fields.gps_pdop":  {"$ne": null}
+                           "fields.GPS_PDOP":  {"$ne": null}
                          },{
-                           "fields.gps_vdop":  {"$ne": null}
+                           "fields.GPS_VDOP":  {"$ne": null}
                          }, {
-                           "fields.gps_average_pdop_status":  {"$ne": null}
+                           "fields.GPS_AVERAGE_PDOP_STATUS":  {"$ne": null}
                          },{
-                           "fields.gps_speed":  {"$ne": null}
+                           "fields.GPS_SPEED":  {"$ne": null}
                          }] }
         },
         doc! { "$sample": { "size": number_of_records_needed } },
@@ -502,9 +498,7 @@ pub async fn test() -> () {
                             ),
                             connection_id: tracks[index].get_i64("connection_id").unwrap() as i64,
                             index: tracks[index].get_i64("index").unwrap() as i64,
-                            fields: Some(Fields::from(
-                                tracks[index].get_document("fields").unwrap(),
-                            )),
+                            fields: Fields::from(tracks[index].get_document("fields").unwrap()),
                             url: Some(tracks[index].get_str("url").unwrap().to_string()),
                         },
                     })
@@ -559,9 +553,9 @@ pub async fn test() -> () {
                                     connection_id: tracks[index].get_i64("connection_id").unwrap()
                                         as i64,
                                     index: tracks[index].get_i64("index").unwrap() as i64,
-                                    fields: Some(Fields::from(
+                                    fields: Fields::from(
                                         tracks[index].get_document("fields").unwrap(),
-                                    )),
+                                    ),
                                     url: Some(tracks[index].get_str("url").unwrap().to_string()),
                                 },
                             });
@@ -594,9 +588,7 @@ pub async fn test() -> () {
                                 connection_id: tracks[index].get_i64("connection_id").unwrap()
                                     as i64,
                                 index: tracks[index].get_i64("index").unwrap() as i64,
-                                fields: Some(Fields::from(
-                                    tracks[index].get_document("fields").unwrap(),
-                                )),
+                                fields: Fields::from(tracks[index].get_document("fields").unwrap()),
                                 url: Some(tracks[index].get_str("url").unwrap().to_string()),
                             },
                         }),
