@@ -12,6 +12,7 @@ fn rocket() -> _ {
             routes![
                 services::simulate,
                 services::index,
+                services::indexx,
                 services::store_p,
                 services::store_t,
                 services::test,

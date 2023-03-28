@@ -2,7 +2,7 @@
 
 use bson::Document;
 use is_empty::IsEmpty;
-use serde::{ser::SerializeMap, Deserialize, Serialize, Serializer};
+use serde::{ser::SerializeMap, Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::HashMap;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -112,7 +112,7 @@ impl<'a> IntoIterator for &'a Fields {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all(serialize = "lowercase", deserialize = "UPPERCASE"))]
 pub struct Fields {
     #[serde(skip_serializing)]

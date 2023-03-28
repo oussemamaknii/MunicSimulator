@@ -7,13 +7,37 @@
   <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.4.1/css/all.css"
     integrity="sha384-5sAR7xN1Nv6T6+dT2mhtzEpVJvfS3NScPQTrOxhwjIuvcA67KV2R5Jz6kr4abQsz" crossorigin="anonymous">
   <style>
-#http {display:inline-block;} 
+    .content {
+      display: flex;
+      justify-content: space-between;
+      margin: 1em auto;
+      padding: 1px 0;
+    }
 
-    .logged-in {display:inline-block;margin-right:10px;
+    select {
+      background-color: rgb(53, 53, 53);
+      border: none;
+      width: 100px;
+      height: 40px;
+      font-family: inherit;
+      font-size: inherit;
+      cursor: inherit;
+      line-height: inherit;
+    }
+
+    #http {
+      display: inline-block;
+    }
+
+    .logged-in {
+      display: inline-block;
+      margin-right: 10px;
       color: green;
     }
 
-    .logged-out {display:inline-block;margin-right:10px;
+    .logged-out {
+      display: inline-block;
+      margin-right: 10px;
       color: red;
     }
 
@@ -27,6 +51,15 @@
 
     form {
       border: 5px solid #f1f1f1;
+    }
+
+    .slct {
+      width: 100%;
+      padding: 16px 8px;
+      margin: 8px 0;
+      display: inline-block;
+      border: 1px solid #ccc;
+      box-sizing: border-box;
     }
 
     input[type=text],
@@ -67,7 +100,7 @@
 
     .formcontainer {
       text-align: center;
-      margin: 24px 50px 12px;
+      margin: 24px 60px 16px;
     }
 
     .container {
@@ -93,16 +126,36 @@
         <label><strong>Your URL :</strong></label>
         <input name="url" id="url" type="text" placeholder="Enter your Notification URL" required>
         <p>{{ msg }}</p>
-        
+
         <div id="http-div">
-          <span class="logged-in" id="newSpan">●</span> <p id="http"></p>
-        </div> 
+          <span class="logged-in" id="newSpan">●</span>
+          <p id="http"></p>
+        </div>
 
         <h1>Coordinates</h1>
         <label><strong>Source</strong></label>
         <input name="lat" id="lat" type="text" placeholder="Enter Source Location" required>
         <label><strong>Destination</strong></label>
         <input name="lon" id="lon" type="text" placeholder="Enter Destination Location" required>
+
+        <div id="http-div" class="content">
+          <label><strong>Choose a presence date </strong></label>
+          <div class="select">
+            <select name="presence_option" id="p_select">
+              {{#each presence_dates}}
+              <option id="slct"> {{this._id.year}}-{{this._id.month}}-{{this._id.day}}</option>
+              {{/each}}
+            </select>
+          </div>
+          <label><strong>Choose a track date </strong></label>
+          <div class="select">
+            <select name="track_option" id="t_select">
+              {{#each track_dates}}
+              <option id="slct"> {{this._id.year}}-{{this._id.month}}-{{this._id.day}} </option>
+              {{/each}}
+            </select>
+          </div>
+        </div>
       </div>
       <button type="submit" id="button"><strong>Simulate !!</strong></button>
   </form>
@@ -116,9 +169,18 @@
   const newSpan = document.getElementById("newSpan");
   const evtSource = new EventSource("/events");
 
-  console.log(evtSource.withCredentials);
-  console.log(evtSource.readyState);
-  console.log(evtSource.url);
+  var x = document.getElementById("p_select");
+
+  var i;
+  for (i = 0; i < x.length; i++) {
+    x.options[i].value = x.options[i].text;
+  };
+
+  var t = document.getElementById("t_select");
+
+  for (i = 0; i < t.length; i++) {
+    t.options[i].value = t.options[i].text;
+  };
 
   evtSource.onopen = function () {
     console.log("Connection to server opened.");
@@ -131,7 +193,8 @@
     }
     else {
       newSpan.setAttribute('class', 'logged-out');
-      http.textContent = "HTTP Request Status : 500"; }
+      http.textContent = "HTTP Request Status : 500";
+    }
   };
 
   evtSource.onerror = function () {

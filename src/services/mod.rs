@@ -2,10 +2,14 @@
 
 extern crate chrono;
 extern crate rocket;
-use crate::models::{self, Tracks};
+use crate::models::{self, Presence, Tracks};
+use bson::Document;
+use mongodb::Collection;
 use reqwest::Response;
 use rocket::response::stream::{Event, EventStream};
+use rocket::response::Redirect;
 use rocket::tokio::sync::broadcast::{channel, error::RecvError, Sender};
+use rocket::uri;
 
 use models::{event, req, Fields};
 use mongodb::{
@@ -36,12 +40,24 @@ pub fn get_value() -> usize {
 }
 
 #[post("/simulate", data = "<user_input>")]
-pub fn simulate(user_input: Form<UserInput>) -> Template {
-    let new_user_input = UserInput {
+pub fn simulate(user_input: Form<UserInput>) -> Redirect {
+    let mut new_user_input = UserInput {
         url: user_input.url.to_string(),
         lon: user_input.lon.to_string(),
         lat: user_input.lat.to_string(),
+        track_option: user_input.track_option.to_string(),
+        presence_option: user_input.presence_option.to_string(),
     };
+
+    if new_user_input.track_option.len() != 10 {
+        new_user_input.track_option.insert(5, '0');
+        new_user_input.track_option.insert(8, '0');
+    }
+
+    if new_user_input.presence_option.len() != 10 {
+        new_user_input.presence_option.insert(5, '0');
+        new_user_input.presence_option.insert(8, '0');
+    }
 
     if ping_server(new_user_input.url.clone()) {
         tokio::spawn(async move {
@@ -63,7 +79,12 @@ pub fn simulate(user_input: Form<UserInput>) -> Template {
                     .execute()
                     .await;
 
-                send_tracks(directions, &new_user_input.url.clone()).await;
+                send_tracks(
+                    directions,
+                    &new_user_input.url.clone(),
+                    &new_user_input.track_option,
+                )
+                .await;
                 println!("Work Done !")
             });
 
@@ -72,9 +93,9 @@ pub fn simulate(user_input: Form<UserInput>) -> Template {
             println!("Shuting down the Handler thread!!")
         });
 
-        return Template::render("index", context! {msg:"Simulating !"});
+        return Redirect::to(uri!(index("Didn't receive a Pong !")));
     }
-    Template::render("index", context! {msg:"Ping missing pong ! check your URL"})
+    Redirect::to(uri!(index("Sending !")))
 }
 
 async fn send_tracks(
@@ -83,6 +104,7 @@ async fn send_tracks(
         google_maps::directions::error::Error,
     >,
     url: &String,
+    option: &String,
 ) -> () {
     use google_maps::prelude::*;
     use polyline;
@@ -119,8 +141,12 @@ async fn send_tracks(
             number_of_records_needed = number_of_records_needed + 1;
         }
     }
-
     let pipeline = vec![
+        doc! {"$addFields": { "date": { "$toDate": "$recorded_at" } }  },
+        doc! {"$addFields": { "subs": {"$substr": [ "$recorded_at", 0, 10 ]} }},
+        doc! {
+            "$match": { "subs" :  {"$eq": option} }
+        },
         doc! {
             "$match": {
                 "$or":[{"fields.gps_dir":  {"$ne": null}
@@ -139,7 +165,6 @@ async fn send_tracks(
                          }] }
         },
         doc! { "$sample": { "size": number_of_records_needed } },
-        doc! {"$addFields": { "date": { "$toDate": "$recorded_at" } }  },
         doc! {"$sort": { "date" : 1 }},
     ];
 
@@ -322,7 +347,7 @@ async fn send_tracks(
                         }),
                         _ => continue,
                     }
-                    // break 'outer;
+                    break 'outer;
                 }
             }
         }
@@ -650,9 +675,130 @@ pub async fn test2() -> () {
     };
 }
 
+#[get("/<msg>")]
+pub async fn index(msg: String) -> Template {
+    use mongodb::bson::doc;
+
+    let client = get_client().await.unwrap();
+
+    let pres_collection: Collection<Presence> = client.database("munic").collection("presences");
+    let track_collection: Collection<Tracks> = client.database("munic").collection("tracks");
+
+    let trk_pipeline = vec![
+        doc! {"$addFields": { "date": { "$toDate": "$recorded_at" } }  },
+        doc! {"$sort": { "date" : 1 }},
+        doc! {"$group":  {
+            "_id": { "year": { "$year": "$date" }, "month": { "$month": "$date" }, "day": { "$dayOfMonth": "$date" } }
+        }},
+    ];
+    let pres_pipeline = vec![
+        doc! {"$addFields": { "date": { "$toDate": "$time" } }  },
+        doc! {"$sort": { "date" : 1 }},
+        doc! {"$group":  {
+            "_id": { "year": { "$year": "$date" }, "month": { "$month": "$date" }, "day": { "$dayOfMonth": "$date" } }
+        }},
+    ];
+
+    let tracks_data = track_collection
+        .aggregate(trk_pipeline, None)
+        .await
+        .map_err(|e| println!("{}", e))
+        .unwrap();
+
+    let presence_data = pres_collection
+        .aggregate(pres_pipeline, None)
+        .await
+        .map_err(|e| println!("{}", e))
+        .unwrap();
+
+    use bson::{bson, Bson, Document};
+    use futures::stream::TryStreamExt;
+
+    let track_dates: Vec<_> = tracks_data
+        .try_collect()
+        .await
+        .map_err(|e| println!("{}", e))
+        .unwrap();
+    let presence_dates: Vec<_> = presence_data
+        .try_collect()
+        .await
+        .map_err(|e| println!("{}", e))
+        .unwrap();
+
+    Template::render(
+        "index",
+        context! {msg:msg,presence_dates:presence_dates,track_dates:track_dates},
+    )
+}
+
 #[get("/")]
-pub fn index() -> Template {
-    Template::render("index", context! {msg:""})
+pub async fn indexx() -> Template {
+    use mongodb::bson::doc;
+
+    let client = get_client().await.unwrap();
+
+    let pres_collection: Collection<Presence> = client.database("munic").collection("presences");
+    let track_collection: Collection<Tracks> = client.database("munic").collection("tracks");
+
+    let trk_pipeline = vec![
+        doc! {"$addFields": { "date": { "$toDate": "$recorded_at" } }  },
+        doc! {"$sort": { "date" : 1 }},
+        doc! {"$group":  {
+            "_id": { "year": { "$year": "$date" }, "month": { "$month": "$date" }, "day": { "$dayOfMonth": "$date" } }
+        }},
+    ];
+    let pres_pipeline = vec![
+        doc! {"$addFields": { "date": { "$toDate": "$time" } }  },
+        doc! {"$sort": { "date" : 1 }},
+        doc! {"$group":  {
+            "_id": { "year": { "$year": "$date" }, "month": { "$month": "$date" }, "day": { "$dayOfMonth": "$date" } }
+        }},
+    ];
+
+    let tracks_data = track_collection
+        .aggregate(trk_pipeline, None)
+        .await
+        .map_err(|e| println!("{}", e))
+        .unwrap();
+
+    let presence_data = pres_collection
+        .aggregate(pres_pipeline, None)
+        .await
+        .map_err(|e| println!("{}", e))
+        .unwrap();
+
+    use bson::{bson, Bson, Document};
+    use futures::stream::TryStreamExt;
+
+    let track_dates: Vec<_> = tracks_data
+        .try_collect()
+        .await
+        .map_err(|e| println!("{}", e))
+        .unwrap();
+    let presence_dates: Vec<_> = presence_data
+        .try_collect()
+        .await
+        .map_err(|e| println!("{}", e))
+        .unwrap();
+
+    Template::render(
+        "index",
+        context! {msg:"",presence_dates:presence_dates,track_dates:track_dates},
+    )
+}
+
+async fn get_client() -> Result<Client, Box<dyn Error + Send + Sync>> {
+    use dotenvy::dotenv;
+    dotenv().ok();
+    let client_uri =
+        env::var("MONGODB_URI").expect("You must set the MONGODB_URI environment var!");
+
+    let options =
+        ClientOptions::parse_with_resolver_config(&client_uri, ResolverConfig::cloudflare())
+            .await?;
+    let client = Client::with_options(options)?;
+
+    Ok(client)
 }
 
 #[get("/store_presence")]
@@ -670,6 +816,8 @@ pub async fn store_t() -> Template {
 }
 
 async fn store_presence() -> Result<(), Box<dyn Error + Send + Sync>> {
+    use dotenvy::dotenv;
+    dotenv().ok();
     use models::Presence;
     use std::fs;
 
@@ -738,11 +886,13 @@ fn ping_server(url: String) -> bool {
     }
 }
 
-#[derive(FromForm)]
+#[derive(FromForm, Debug)]
 pub struct UserInput {
     lon: String,
     lat: String,
     url: String,
+    track_option: String,
+    presence_option: String,
 }
 
 fn base_url(mut url: Url) -> Result<Url, ParseError> {
