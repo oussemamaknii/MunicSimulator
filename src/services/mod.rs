@@ -816,17 +816,17 @@ async fn get_client() -> Result<Client, Box<dyn Error + Send + Sync>> {
 }
 
 #[get("/store_presence")]
-pub async fn store_p() -> Template {
+pub async fn store_p() -> Redirect {
     tokio::spawn(async move {
         store_presence().await;
     });
-    Template::render("index", context! {msg:"Presences Stored Successfully"})
+    Redirect::to(uri!(index("Presences Stored Successfully")))
 }
 
 #[get("/store_tracks")]
-pub async fn store_t() -> Template {
+pub async fn store_t() -> Redirect {
     tokio::spawn(async move { store_tracks().await });
-    Template::render("index", context! {msg:"Tracks Stored Successfully"})
+    Redirect::to(uri!(index("Tracks Stored Successfully")))
 }
 
 async fn store_presence() -> Result<(), Box<dyn Error + Send + Sync>> {
