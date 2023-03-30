@@ -50,13 +50,25 @@ pub fn simulate(user_input: Form<UserInput>) -> Redirect {
     };
 
     if new_user_input.track_option.len() != 10 {
-        new_user_input.track_option.insert(5, '0');
-        new_user_input.track_option.insert(8, '0');
+        if new_user_input.track_option.match_indices("-").nth(1) == Some((6, "-")) {
+            new_user_input.track_option.insert(5, '0');
+        }
+        if new_user_input.track_option.match_indices("-").nth(1) == Some((7, "-"))
+            && new_user_input.track_option.len() != 10
+        {
+            new_user_input.track_option.insert(8, '0');
+        }
     }
 
     if new_user_input.presence_option.len() != 10 {
-        new_user_input.presence_option.insert(5, '0');
-        new_user_input.presence_option.insert(8, '0');
+        if new_user_input.presence_option.match_indices("-").nth(1) == Some((6, "-")) {
+            new_user_input.presence_option.insert(5, '0');
+        }
+        if new_user_input.presence_option.match_indices("-").nth(1) == Some((7, "-"))
+            && new_user_input.presence_option.len() != 10
+        {
+            new_user_input.presence_option.insert(8, '0');
+        }
     }
 
     if ping_server(new_user_input.url.clone()) {
@@ -182,6 +194,8 @@ async fn send_tracks(
         .await
         .map_err(|e| println!("{}", e))
         .unwrap();
+
+    println!("{:?}", tracks.len());
 
     let mut index = 0;
 
