@@ -17,6 +17,7 @@ dependencies = [
  "polyline",
  "reqwest",
  "rocket 0.5.0-rc.2",
+ "rocket-multipart-form-data",
  "rocket_contrib",
  "rocket_dyn_templates",
  "rust_socketio",
@@ -2533,6 +2534,18 @@ dependencies = [
  "ubyte",
  "version_check 0.9.4",
  "yansi",
+]
+
+[[package]]
+name = "rocket-multipart-form-data"
+version = "0.10.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9a8148192183eb2a7c1438e603fb8db1d9020739776aecd11a4f821b578575c3"
+dependencies = [
+ "mime 0.3.16",
+ "multer",
+ "rocket 0.5.0-rc.2",
+ "tokio-util",
 ]
 
 [[package]]

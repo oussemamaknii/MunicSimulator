@@ -10,6 +10,14 @@ use rocket::response::stream::{Event, EventStream};
 use rocket::response::Redirect;
 use rocket::tokio::sync::broadcast::{channel, error::RecvError, Sender};
 use rocket::uri;
+use std::fs;
+
+use rocket::http::ContentType;
+use rocket::Data;
+
+use rocket_multipart_form_data::{
+    mime, MultipartFormData, MultipartFormDataField, MultipartFormDataOptions, Repetition,
+};
 
 use models::{event, req, Fields};
 use mongodb::{
@@ -19,6 +27,7 @@ use mongodb::{
 use serde::Deserialize;
 use std::env;
 use std::error::Error;
+use std::path::PathBuf;
 
 use rocket::FromForm;
 use rocket::{form::Form, http::ext::IntoCollection};
@@ -37,6 +46,51 @@ pub fn set_value(val: usize) {
 
 pub fn get_value() -> usize {
     state.load(Ordering::Relaxed)
+}
+
+#[post("/file", data = "<data>")]
+pub async fn file_json(content_type: &ContentType, data: Data<'_>) -> () {
+    let mut options = MultipartFormDataOptions::with_multipart_form_data_fields(vec![
+        MultipartFormDataField::file("json_file")
+            .content_type_by_string(Some(mime::APPLICATION_JSON))
+            .unwrap(),
+        MultipartFormDataField::text("url"),
+        MultipartFormDataField::text("lon"),
+        MultipartFormDataField::text("lat"),
+        MultipartFormDataField::text("track_option"),
+        MultipartFormDataField::text("presence_option"),
+    ]);
+
+    let mut multipart_form_data = MultipartFormData::parse(content_type, data, options)
+        .await
+        .unwrap();
+
+    let file = multipart_form_data.files.get("json_file");
+    let url_text = multipart_form_data.texts.remove("url");
+    let lon_text = multipart_form_data.texts.remove("lon");
+    let lat_text = multipart_form_data.texts.remove("lat");
+    let track_option = multipart_form_data.texts.remove("track_option");
+    let presence_option = multipart_form_data.texts.remove("presence_option");
+
+    if let Some(file_fields) = file {
+        let file_field = &file_fields[0];
+
+        let _content_type = &file_field.content_type;
+        let _file_name = &file_field.file_name;
+        let _path = &file_field.path;
+
+        let curr = env::current_dir().unwrap();
+        let mut path = PathBuf::new();
+
+        // path.push(curr);
+        path.push("C:\\Users\\makni_o\\\\Documents\\MunicSimulator\\uploads\\");
+        match _file_name {
+            Some(name) => path.push(name),
+            None => return (),
+        }
+
+        fs::rename(_path, path);
+    }
 }
 
 #[post("/simulate", data = "<user_input>")]
@@ -835,7 +889,7 @@ async fn store_presence() -> Result<(), Box<dyn Error + Send + Sync>> {
     use models::Presence;
     use std::fs;
 
-    let data = fs::read_to_string("./presence.json").expect("Unable to read file");
+    let data = fs::read_to_string("./uploads/presence.json").expect("Unable to read file");
 
     let json_data: Vec<Presence> = serde_json::from_str(&data).expect("Unable to read file");
 
@@ -860,7 +914,7 @@ async fn store_tracks() -> Result<(), Box<dyn Error + Send + Sync>> {
     dotenv().ok();
     use std::fs;
 
-    let data = fs::read_to_string("./tracks.json").expect("Unable to read file");
+    let data = fs::read_to_string("./uploads/tracks.json").expect("Unable to read file");
 
     let json_data: Vec<Tracks> = serde_json::from_str(&data).expect("Unable to read file");
 

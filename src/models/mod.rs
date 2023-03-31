@@ -2,8 +2,7 @@
 
 use bson::Document;
 use is_empty::IsEmpty;
-use serde::{ser::SerializeMap, Deserialize, Deserializer, Serialize, Serializer};
-use std::collections::HashMap;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Presence {
@@ -76,7 +75,6 @@ pub struct Tracks {
     pub connection_id: i64,
     pub index: i64,
 
-    // #[serde(serialize_with = "serialize_fields")]
     pub fields: Fields,
 
     #[serde(skip_serializing_if = "Option::is_none")]

@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html>
-<title>Simple Sign up from</title>
+<title>Munic Simulator</title>
 
 <head>
   <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700" rel="stylesheet">
@@ -120,45 +120,50 @@
 
 <body>
   <form id="cord_form" method="post" action="/simulate">
-    <div class="formcontainer">
-      <div class="container">
+    {{!-- <form id="cord_form" enctype='multipart/form-data' method="post" action="/file"> --}}
+      <div class="formcontainer">
+        <div class="container">
 
-        <label><strong>Your URL :</strong></label>
-        <input name="url" id="url" type="text" placeholder="Enter your Notification URL" required>
-        <p>{{ msg }}</p>
+          <label><strong>Your URL :</strong></label>
+          <input name="url" id="url" type="text" placeholder="Enter your Notification URL" required>
+          <p>{{ msg }}</p>
 
-        <div id="http-div">
-          <span class="logged-in" id="newSpan">●</span>
-          <p id="http"></p>
-        </div>
-
-        <h1>Coordinates</h1>
-        <label><strong>Source</strong></label>
-        <input name="lat" id="lat" type="text" placeholder="Enter Source Location" required>
-        <label><strong>Destination</strong></label>
-        <input name="lon" id="lon" type="text" placeholder="Enter Destination Location" required>
-
-        <div id="http-div" class="content">
-          <label><strong>Choose a presence date </strong></label>
-          <div class="select">
-            <select name="presence_option" id="p_select">
-              {{#each presence_dates}}
-              <option id="slct"> {{this._id.year}}-{{this._id.month}}-{{this._id.day}}</option>
-              {{/each}}
-            </select>
+          <div id="http-div">
+            <span class="logged-in" id="newSpan">●</span>
+            <p id="http"></p>
           </div>
-          <label><strong>Choose a track date </strong></label>
-          <div class="select">
-            <select name="track_option" id="t_select">
-              {{#each track_dates}}
-              <option id="slct"> {{this._id.year}}-{{this._id.month}}-{{this._id.day}} </option>
-              {{/each}}
-            </select>
+
+          <h1>Coordinates</h1>
+          <label><strong>Source</strong></label>
+          <input name="lat" id="lat" type="text" placeholder="Enter Source Location" required>
+          <label><strong>Destination</strong></label>
+          <input name="lon" id="lon" type="text" placeholder="Enter Destination Location" required>
+
+          <div id="http-div" class="content">
+            <label><strong>Choose a presence date </strong></label>
+            <div class="select">
+              <select name="presence_option" id="p_select">
+                {{#each presence_dates}}
+                <option id="slct"> {{this._id.year}}-{{this._id.month}}-{{this._id.day}}</option>
+                {{/each}}
+              </select>
+            </div>
+            <label><strong>Choose a track date </strong></label>
+            <div class="select">
+              <select name="track_option" id="t_select">
+                {{#each track_dates}}
+                <option id="slct"> {{this._id.year}}-{{this._id.month}}-{{this._id.day}} </option>
+                {{/each}}
+              </select>
+            </div>
           </div>
+          <label><strong>Upload a Track json file</strong></label>
+
+          <input type="file" id="json_file" name="json_file" accept="application/json">
+
         </div>
-      </div>
-      <button type="submit" id="button"><strong>Simulate !!</strong></button>
-  </form>
+        <button type="submit" id="button"><strong>Simulate !!</strong></button>
+    </form>
 </body>
 <script src="https://unpkg.com/validator@latest/validator.min.js"></script>
 <script type="text/javascript">
