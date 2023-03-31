@@ -3,12 +3,9 @@
 extern crate chrono;
 extern crate rocket;
 use crate::models::{self, Presence, Tracks};
-use bson::Document;
 use mongodb::Collection;
-use reqwest::Response;
 use rocket::response::stream::{Event, EventStream};
 use rocket::response::Redirect;
-use rocket::tokio::sync::broadcast::{channel, error::RecvError, Sender};
 use rocket::uri;
 use std::fs;
 
@@ -16,41 +13,40 @@ use rocket::http::ContentType;
 use rocket::Data;
 
 use rocket_multipart_form_data::{
-    mime, MultipartFormData, MultipartFormDataField, MultipartFormDataOptions, Repetition,
+    mime, MultipartFormData, MultipartFormDataField, MultipartFormDataOptions,
 };
 
 use models::{event, req, Fields};
 use mongodb::{
     options::{ClientOptions, ResolverConfig},
-    Client, Cursor,
+    Client,
 };
-use serde::Deserialize;
 use std::env;
 use std::error::Error;
 use std::path::PathBuf;
 
+use rocket::form::Form;
 use rocket::FromForm;
-use rocket::{form::Form, http::ext::IntoCollection};
 use rocket::{get, post};
 use rocket_dyn_templates::{context, Template};
 use tokio::time::{self, Duration};
-use url::{ParseError, Url};
+use url::Url;
 
 use core::sync::atomic::{AtomicUsize, Ordering};
 
-static state: AtomicUsize = AtomicUsize::new(1);
+static STATE: AtomicUsize = AtomicUsize::new(1);
 
 pub fn set_value(val: usize) {
-    state.store(val, Ordering::Relaxed)
+    STATE.store(val, Ordering::Relaxed)
 }
 
 pub fn get_value() -> usize {
-    state.load(Ordering::Relaxed)
+    STATE.load(Ordering::Relaxed)
 }
 
 #[post("/file", data = "<data>")]
 pub async fn file_json(content_type: &ContentType, data: Data<'_>) -> () {
-    let mut options = MultipartFormDataOptions::with_multipart_form_data_fields(vec![
+    let options = MultipartFormDataOptions::with_multipart_form_data_fields(vec![
         MultipartFormDataField::file("json_file")
             .content_type_by_string(Some(mime::APPLICATION_JSON))
             .unwrap(),
@@ -61,16 +57,16 @@ pub async fn file_json(content_type: &ContentType, data: Data<'_>) -> () {
         MultipartFormDataField::text("presence_option"),
     ]);
 
-    let mut multipart_form_data = MultipartFormData::parse(content_type, data, options)
+    let multipart_form_data = MultipartFormData::parse(content_type, data, options)
         .await
         .unwrap();
 
     let file = multipart_form_data.files.get("json_file");
-    let url_text = multipart_form_data.texts.remove("url");
-    let lon_text = multipart_form_data.texts.remove("lon");
-    let lat_text = multipart_form_data.texts.remove("lat");
-    let track_option = multipart_form_data.texts.remove("track_option");
-    let presence_option = multipart_form_data.texts.remove("presence_option");
+    // let url_text = multipart_form_data.texts.remove("url");
+    // let lon_text = multipart_form_data.texts.remove("lon");
+    // let lat_text = multipart_form_data.texts.remove("lat");
+    // let track_option = multipart_form_data.texts.remove("track_option");
+    // let presence_option = multipart_form_data.texts.remove("presence_option");
 
     if let Some(file_fields) = file {
         let file_field = &file_fields[0];
@@ -79,7 +75,7 @@ pub async fn file_json(content_type: &ContentType, data: Data<'_>) -> () {
         let _file_name = &file_field.file_name;
         let _path = &file_field.path;
 
-        let curr = env::current_dir().unwrap();
+        // let curr = env::current_dir().unwrap();
         let mut path = PathBuf::new();
 
         // path.push(curr);
@@ -89,7 +85,10 @@ pub async fn file_json(content_type: &ContentType, data: Data<'_>) -> () {
             None => return (),
         }
 
-        fs::rename(_path, path);
+        match fs::rename(_path, path) {
+            Ok(_c) => (),
+            Err(_e) => panic!("rename panic !"),
+        }
     }
 }
 
@@ -159,9 +158,9 @@ pub fn simulate(user_input: Form<UserInput>) -> Redirect {
             println!("Shuting down the Handler thread!!")
         });
 
-        return Redirect::to(uri!(index("Didn't receive a Pong !")));
+        return Redirect::to(uri!(index("Sending !")));
     }
-    Redirect::to(uri!(index("Sending !")))
+    Redirect::to(uri!(index("Didn't receive a Pong !")))
 }
 
 async fn send_tracks(
@@ -173,17 +172,11 @@ async fn send_tracks(
     option: &String,
 ) -> () {
     use google_maps::prelude::*;
-    use polyline;
 
     let json_data = &directions.unwrap().routes[0].legs[0];
 
-    let durations = &json_data.duration.text;
-    let distance = &json_data.distance.text;
-
     use dotenvy::dotenv;
     use mongodb::bson::doc;
-    use mongodb::options::ClientOptions;
-    use tokio_stream::StreamExt;
     dotenv().ok();
 
     let client_uri =
@@ -203,7 +196,7 @@ async fn send_tracks(
     for step in &json_data.steps {
         let result = polyline::decode_polyline(&step.polyline.points, 5).unwrap();
 
-        for coord in &result {
+        for _ in &result {
             number_of_records_needed = number_of_records_needed + 1;
         }
     }
@@ -212,23 +205,6 @@ async fn send_tracks(
         doc! {"$addFields": { "subs": {"$substr": [ "$recorded_at", 0, 10 ]} }},
         doc! {
             "$match": { "subs" :  {"$eq": option} }
-        },
-        doc! {
-            "$match": {
-                "$or":[{"fields.gps_dir":  {"$ne": null}
-                         },{
-                           "fields.gps_altitude":  {"$ne": null}
-                         },{
-                           "fields.gps_hdop":  {"$ne": null}
-                         },{
-                           "fields.gps_pdop":  {"$ne": null}
-                         },{
-                           "fields.gps_vdop":  {"$ne": null}
-                         }, {
-                           "fields.gps_average_pdop_status":  {"$ne": null}
-                         },{
-                           "fields.gps_speed":  {"$ne": null}
-                         }] }
         },
         doc! { "$sample": { "size": number_of_records_needed } },
         doc! {"$sort": { "date" : 1 }},
@@ -240,7 +216,6 @@ async fn send_tracks(
         .map_err(|e| println!("{}", e))
         .unwrap();
 
-    use bson::{bson, Bson, Document};
     use futures::stream::TryStreamExt;
 
     let tracks: Vec<_> = data
@@ -253,7 +228,7 @@ async fn send_tracks(
 
     let mut index = 0;
 
-    let mut tracksArray: Vec<req<Tracks>> = vec![];
+    let mut tracks_array: Vec<req<Tracks>> = vec![];
 
     'outer: for step in &json_data.steps {
         use substring::Substring;
@@ -262,11 +237,10 @@ async fn send_tracks(
         let result = polyline::decode_polyline(&step.polyline.points, 6).unwrap();
         let mut count = 0;
 
-        for coord in &result {
+        for _ in &result {
             count = count + 1;
         }
 
-        let c: char = ' ';
         let mut ten_minutes = time::interval(
             Duration::from_secs_f64(
                 (((step.duration.text)
@@ -286,13 +260,11 @@ async fn send_tracks(
             println!("sending ...");
             let client = reqwest::Client::new();
 
-            use chrono::prelude::*;
             use chrono::Duration;
-            use chrono::{DateTime, Local, TimeZone};
 
             index = index + 1;
 
-            if tracksArray.len() == 10 {
+            if tracks_array.len() == 10 {
                 break 'outer;
             }
 
@@ -329,60 +301,20 @@ async fn send_tracks(
                         },
                     })
                 } else {
-                    client.post(url).json(&tracksArray)
+                    client.post(url).json(&tracks_array)
                 }
             };
             let res = builder.send().await;
 
             match res {
-                Ok(a) => match get_value() {
+                Ok(_a) => match get_value() {
                     1 => continue,
-                    0 => tracksArray = vec![],
+                    0 => tracks_array = vec![],
                     _ => continue,
                 },
-                Err(err) => {
-                    match get_value() {
-                        1 => {
-                            tracksArray.push(req {
-                                meta: event {
-                                    event: "track".to_string(),
-                                    account: "municio".to_string(),
-                                },
-                                payload: Tracks {
-                                    id: tracks[index].get_i64("id").unwrap() as i64,
-                                    id_str: Some(
-                                        tracks[index].get_str("id_str").unwrap().to_string(),
-                                    ),
-                                    location: Some([coord.x, coord.y]),
-                                    loc: Some([coord.x, coord.y]),
-                                    asset: Some(
-                                        tracks[index].get_str("asset").unwrap().to_string(),
-                                    ),
-                                    recorded_at: Some(
-                                        (Local::now() - Duration::minutes(2))
-                                            .format("%Y-%m-%dT%H:%M:%SZ")
-                                            .to_string(),
-                                    ),
-                                    recorded_at_ms: Some(
-                                        (Local::now() - Duration::minutes(2))
-                                            .format("%Y-%m-%dT%H:%M:%S%.3fZ")
-                                            .to_string(),
-                                    ),
-                                    received_at: Some(
-                                        (Local::now()).format("%Y-%m-%dT%H:%M:%SZ").to_string(),
-                                    ),
-                                    connection_id: tracks[index].get_i64("connection_id").unwrap()
-                                        as i64,
-                                    index: tracks[index].get_i64("index").unwrap() as i64,
-                                    fields: Fields::from(
-                                        tracks[index].get_document("fields").unwrap(),
-                                    ),
-                                    url: Some(tracks[index].get_str("url").unwrap().to_string()),
-                                },
-                            });
-                            set_value(0);
-                        }
-                        0 => tracksArray.push(req {
+                Err(_err) => match get_value() {
+                    1 => {
+                        tracks_array.push(req {
                             meta: event {
                                 event: "track".to_string(),
                                 account: "municio".to_string(),
@@ -412,11 +344,41 @@ async fn send_tracks(
                                 fields: Fields::from(tracks[index].get_document("fields").unwrap()),
                                 url: Some(tracks[index].get_str("url").unwrap().to_string()),
                             },
-                        }),
-                        _ => continue,
+                        });
+                        set_value(0);
                     }
-                    break 'outer;
-                }
+                    0 => tracks_array.push(req {
+                        meta: event {
+                            event: "track".to_string(),
+                            account: "municio".to_string(),
+                        },
+                        payload: Tracks {
+                            id: tracks[index].get_i64("id").unwrap() as i64,
+                            id_str: Some(tracks[index].get_str("id_str").unwrap().to_string()),
+                            location: Some([coord.x, coord.y]),
+                            loc: Some([coord.x, coord.y]),
+                            asset: Some(tracks[index].get_str("asset").unwrap().to_string()),
+                            recorded_at: Some(
+                                (Local::now() - Duration::minutes(2))
+                                    .format("%Y-%m-%dT%H:%M:%SZ")
+                                    .to_string(),
+                            ),
+                            recorded_at_ms: Some(
+                                (Local::now() - Duration::minutes(2))
+                                    .format("%Y-%m-%dT%H:%M:%S%.3fZ")
+                                    .to_string(),
+                            ),
+                            received_at: Some(
+                                (Local::now()).format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+                            ),
+                            connection_id: tracks[index].get_i64("connection_id").unwrap() as i64,
+                            index: tracks[index].get_i64("index").unwrap() as i64,
+                            fields: Fields::from(tracks[index].get_document("fields").unwrap()),
+                            url: Some(tracks[index].get_str("url").unwrap().to_string()),
+                        },
+                    }),
+                    _ => continue,
+                },
             }
         }
     }
@@ -440,13 +402,9 @@ pub async fn test() -> () {
 
     let json_data = &directions.unwrap().routes[0].legs[0];
 
-    let durations = &json_data.duration.text;
-    let distance = &json_data.distance.text;
-
     use dotenvy::dotenv;
     use mongodb::bson::doc;
     use mongodb::options::ClientOptions;
-    use tokio_stream::StreamExt;
     dotenv().ok();
 
     let client_uri =
@@ -466,31 +424,15 @@ pub async fn test() -> () {
     for step in &json_data.steps {
         let result = polyline::decode_polyline(&step.polyline.points, 6).unwrap();
 
-        for coord in &result {
+        for _ in &result {
             number_of_records_needed = number_of_records_needed + 1;
         }
     }
 
     let pipeline = vec![
-        doc! {
-            "$match": {
-                "$or":[{"fields.gps_dir":  {"$ne": null}
-                         },{
-                           "fields.gps_altitude":  {"$ne": null}
-                         },{
-                           "fields.gps_hdop":  {"$ne": null}
-                         },{
-                           "fields.gps_pdop":  {"$ne": null}
-                         },{
-                           "fields.gps_vdop":  {"$ne": null}
-                         }, {
-                           "fields.gps_average_pdop_status":  {"$ne": null}
-                         },{
-                           "fields.gps_speed":  {"$ne": null}
-                         }] }
-        },
         doc! { "$sample": { "size": number_of_records_needed } },
         doc! {"$addFields": { "date": { "$toDate": "$recorded_at" } }  },
+        doc! {"$match": { "fields": { "$ne": {} } }  },
         doc! {"$sort": { "date" : 1 }},
     ];
 
@@ -500,7 +442,6 @@ pub async fn test() -> () {
         .map_err(|e| println!("{}", e))
         .unwrap();
 
-    use bson::{bson, Bson, Document};
     use futures::stream::TryStreamExt;
 
     let tracks: Vec<_> = data
@@ -511,16 +452,7 @@ pub async fn test() -> () {
 
     let mut index = 0;
 
-    let mut tracksArray: Vec<req<Tracks>> = vec![];
-
-    // match data {
-    //     Ok(mut cursor) => {
-    //         while let Some(doc) = cursor.next().await {
-    //             println!("{:#?}", doc.unwrap())
-    //         }
-    //     }
-    //     Err(e) => println!("{:#?}", e),
-    // };
+    let mut tracks_array: Vec<req<Tracks>> = vec![];
 
     'outer: for step in &json_data.steps {
         use substring::Substring;
@@ -529,11 +461,10 @@ pub async fn test() -> () {
         let result = polyline::decode_polyline(&step.polyline.points, 5).unwrap();
         let mut count = 0;
 
-        for coord in &result {
+        for _ in &result {
             count = count + 1;
         }
 
-        let c: char = ' ';
         let mut ten_minutes = time::interval(
             Duration::from_secs_f64(
                 (((step.duration.text)
@@ -553,13 +484,12 @@ pub async fn test() -> () {
             println!("sending ...");
             let client = reqwest::Client::new();
 
-            use chrono::prelude::*;
             use chrono::Duration;
-            use chrono::{DateTime, Local, TimeZone};
+            use chrono::Local;
 
             index = index + 1;
 
-            if tracksArray.len() == 10 {
+            if tracks_array.len() == 10 {
                 break 'outer;
             }
 
@@ -598,63 +528,23 @@ pub async fn test() -> () {
                 } else {
                     client
                         .post("http://localhost:5000/simulate")
-                        .json(&tracksArray)
+                        .json(&tracks_array)
                 }
             };
             let res = builder.send().await;
 
             match res {
-                Ok(a) => match get_value() {
+                Ok(_a) => match get_value() {
                     1 => continue,
                     0 => {
-                        tracksArray = vec![];
+                        tracks_array = vec![];
                         set_value(1);
                     }
                     _ => continue,
                 },
-                Err(err) => {
-                    match get_value() {
-                        1 => {
-                            tracksArray.push(req {
-                                meta: event {
-                                    event: "track".to_string(),
-                                    account: "municio".to_string(),
-                                },
-                                payload: Tracks {
-                                    id: tracks[index].get_i64("id").unwrap() as i64,
-                                    id_str: Some(
-                                        tracks[index].get_str("id_str").unwrap().to_string(),
-                                    ),
-                                    location: Some([coord.x, coord.y]),
-                                    loc: Some([coord.x, coord.y]),
-                                    asset: Some(
-                                        tracks[index].get_str("asset").unwrap().to_string(),
-                                    ),
-                                    recorded_at: Some(
-                                        (Local::now() - Duration::minutes(2))
-                                            .format("%Y-%m-%dT%H:%M:%SZ")
-                                            .to_string(),
-                                    ),
-                                    recorded_at_ms: Some(
-                                        (Local::now() - Duration::minutes(2))
-                                            .format("%Y-%m-%dT%H:%M:%S%.3fZ")
-                                            .to_string(),
-                                    ),
-                                    received_at: Some(
-                                        (Local::now()).format("%Y-%m-%dT%H:%M:%SZ").to_string(),
-                                    ),
-                                    connection_id: tracks[index].get_i64("connection_id").unwrap()
-                                        as i64,
-                                    index: tracks[index].get_i64("index").unwrap() as i64,
-                                    fields: Fields::from(
-                                        tracks[index].get_document("fields").unwrap(),
-                                    ),
-                                    url: Some(tracks[index].get_str("url").unwrap().to_string()),
-                                },
-                            });
-                            set_value(0);
-                        }
-                        0 => tracksArray.push(req {
+                Err(_err) => match get_value() {
+                    1 => {
+                        tracks_array.push(req {
                             meta: event {
                                 event: "track".to_string(),
                                 account: "municio".to_string(),
@@ -684,11 +574,41 @@ pub async fn test() -> () {
                                 fields: Fields::from(tracks[index].get_document("fields").unwrap()),
                                 url: Some(tracks[index].get_str("url").unwrap().to_string()),
                             },
-                        }),
-                        _ => continue,
+                        });
+                        set_value(0);
                     }
-                    // break 'outer;
-                }
+                    0 => tracks_array.push(req {
+                        meta: event {
+                            event: "track".to_string(),
+                            account: "municio".to_string(),
+                        },
+                        payload: Tracks {
+                            id: tracks[index].get_i64("id").unwrap() as i64,
+                            id_str: Some(tracks[index].get_str("id_str").unwrap().to_string()),
+                            location: Some([coord.x, coord.y]),
+                            loc: Some([coord.x, coord.y]),
+                            asset: Some(tracks[index].get_str("asset").unwrap().to_string()),
+                            recorded_at: Some(
+                                (Local::now() - Duration::minutes(2))
+                                    .format("%Y-%m-%dT%H:%M:%SZ")
+                                    .to_string(),
+                            ),
+                            recorded_at_ms: Some(
+                                (Local::now() - Duration::minutes(2))
+                                    .format("%Y-%m-%dT%H:%M:%S%.3fZ")
+                                    .to_string(),
+                            ),
+                            received_at: Some(
+                                (Local::now()).format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+                            ),
+                            connection_id: tracks[index].get_i64("connection_id").unwrap() as i64,
+                            index: tracks[index].get_i64("index").unwrap() as i64,
+                            fields: Fields::from(tracks[index].get_document("fields").unwrap()),
+                            url: Some(tracks[index].get_str("url").unwrap().to_string()),
+                        },
+                    }),
+                    _ => continue,
+                },
             }
         }
     }
@@ -703,44 +623,6 @@ pub fn stream() -> EventStream![] {
             interval.tick().await;
         }
     }
-}
-
-pub async fn test2() -> () {
-    use dotenvy::dotenv;
-    use mongodb::bson::doc;
-    use mongodb::options::ClientOptions;
-    use tokio_stream::StreamExt;
-    dotenv().ok();
-
-    let client_uri =
-        env::var("MONGODB_URI").expect("You must set the MONGODB_URI environment var!");
-
-    let options =
-        ClientOptions::parse_with_resolver_config(&client_uri, ResolverConfig::cloudflare())
-            .await
-            .unwrap();
-    let client = mongodb::Client::with_options(options).unwrap();
-
-    let tracks = client.database("munic").collection::<Tracks>("tracks");
-
-    let pipeline = vec![
-        doc! {"$addFields": { "date": { "$toDate": "$recorded_at" } }  },
-        doc! {"$sort": { "date" : 1 }},
-    ];
-
-    let data = tracks
-        .aggregate(pipeline, None)
-        .await
-        .map_err(|e| println!("{}", e));
-
-    match data {
-        Ok(mut cursor) => {
-            while let Some(doc) = cursor.next().await {
-                println!("{:#?}", doc.unwrap())
-            }
-        }
-        Err(e) => println!("{:#?}", e),
-    };
 }
 
 #[get("/<msg>")]
@@ -779,7 +661,6 @@ pub async fn index(msg: String) -> Template {
         .map_err(|e| println!("{}", e))
         .unwrap();
 
-    use bson::{bson, Bson, Document};
     use futures::stream::TryStreamExt;
 
     let track_dates: Vec<_> = tracks_data
@@ -835,7 +716,6 @@ pub async fn indexx() -> Template {
         .map_err(|e| println!("{}", e))
         .unwrap();
 
-    use bson::{bson, Bson, Document};
     use futures::stream::TryStreamExt;
 
     let track_dates: Vec<_> = tracks_data
@@ -872,7 +752,10 @@ async fn get_client() -> Result<Client, Box<dyn Error + Send + Sync>> {
 #[get("/store_presence")]
 pub async fn store_p() -> Redirect {
     tokio::spawn(async move {
-        store_presence().await;
+        match store_presence().await {
+            Ok(_e) => (),
+            Err(_e) => panic!("presence storage panic !!"),
+        }
     });
     Redirect::to(uri!(index("Presences Stored Successfully")))
 }
@@ -886,8 +769,6 @@ pub async fn store_t() -> Redirect {
 async fn store_presence() -> Result<(), Box<dyn Error + Send + Sync>> {
     use dotenvy::dotenv;
     dotenv().ok();
-    use models::Presence;
-    use std::fs;
 
     let data = fs::read_to_string("./uploads/presence.json").expect("Unable to read file");
 
@@ -904,7 +785,10 @@ async fn store_presence() -> Result<(), Box<dyn Error + Send + Sync>> {
     let collection = client.database("munic").collection("presences");
 
     for presence in json_data {
-        collection.insert_one(presence, None).await;
+        match collection.insert_one(presence, None).await {
+            Ok(_e) => continue,
+            Err(_e) => panic!("presence storage panic !!"),
+        }
     }
     Ok(())
 }
@@ -912,7 +796,6 @@ async fn store_presence() -> Result<(), Box<dyn Error + Send + Sync>> {
 async fn store_tracks() -> Result<(), Box<dyn Error + Send + Sync>> {
     use dotenvy::dotenv;
     dotenv().ok();
-    use std::fs;
 
     let data = fs::read_to_string("./uploads/tracks.json").expect("Unable to read file");
 
@@ -929,14 +812,17 @@ async fn store_tracks() -> Result<(), Box<dyn Error + Send + Sync>> {
     let collection = client.database("munic").collection("tracks");
 
     for track in json_data {
-        collection.insert_one(track, None).await;
+        match collection.insert_one(track, None).await {
+            Ok(_e) => continue,
+            Err(_e) => panic!("track storage panic !!"),
+        }
     }
     Ok(())
 }
 
-fn print_type_of<T>(_: &T) {
-    println!("{}", std::any::type_name::<T>())
-}
+// fn print_type_of<T>(_: &T) {
+//     println!("{}", std::any::type_name::<T>())
+// }
 
 fn ping_server(url: String) -> bool {
     use dns_lookup::lookup_host;
@@ -950,7 +836,7 @@ fn ping_server(url: String) -> bool {
     let mut buffer = Buffer::new();
     match pinger.send(ips[0], &mut buffer) {
         Ok(_) => true,
-        Err(err) => false,
+        Err(_err) => false,
     }
 }
 
@@ -961,19 +847,4 @@ pub struct UserInput {
     url: String,
     track_option: String,
     presence_option: String,
-}
-
-fn base_url(mut url: Url) -> Result<Url, ParseError> {
-    match url.path_segments_mut() {
-        Ok(mut path) => {
-            path.clear();
-        }
-        Err(_) => {
-            panic!("Cannot find a base!");
-        }
-    }
-
-    url.set_query(None);
-
-    Ok(url)
 }

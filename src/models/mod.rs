@@ -91,7 +91,7 @@ impl<T: Default + PartialEq> ShouldSkip for Option<T> {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Default, Deserialize)]
 #[serde(rename_all(serialize = "UPPERCASE", deserialize = "UPPERCASE"))]
 pub struct Fields {
     //---------------Generic Data-------------------------
@@ -437,550 +437,550 @@ pub struct Base64 {
 
 impl From<&Document> for Fields {
     fn from(doc: &Document) -> Fields {
-        let mut field = Fields {
-            gprmc_valid: Some(Base64::from(match doc.get_document("gprmc_valid") {
+        let field = Fields {
+            gprmc_valid: Some(Base64::from(match doc.get_document("GPRMC_VALID") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
 
-            gps_speed: Some(Base64::from(match doc.get_document("gps_speed") {
+            gps_speed: Some(Base64::from(match doc.get_document("GPS_SPEED") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
-            gps_dir: Some(Base64::from(match doc.get_document("gps_dir") {
+            gps_dir: Some(Base64::from(match doc.get_document("GPS_DIR") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
-            gps_altitude: Some(Base64::from(match doc.get_document("gps_altitude") {
+            gps_altitude: Some(Base64::from(match doc.get_document("GPS_ALTITUDE") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
-            dio_ignition: Some(Base64::from(match doc.get_document("dio_ignition") {
+            dio_ignition: Some(Base64::from(match doc.get_document("DIO_IGNITION") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
             batt: Some(Base64::from(match doc.get_document("batt") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
-            gprs_header: Some(Base64::from(match doc.get_document("gprs_header") {
+            gprs_header: Some(Base64::from(match doc.get_document("GPRS_HEADER") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
             rssi: Some(Base64::from(match doc.get_document("rssi") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
             mdi_ext_batt_present: Some(Base64::from(
-                match doc.get_document("mdi_ext_batt_present") {
+                match doc.get_document("MDI_EXT_BATT_PRESENT") {
                     Ok(e) => Some(e),
-                    Err(e) => None,
+                    Err(_e) => None,
                 },
             )),
-            odo_partial_km: Some(Base64::from(match doc.get_document("odo_partial_km") {
+            odo_partial_km: Some(Base64::from(match doc.get_document("ODO_PARTIAL_KM") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
-            odo_full: Some(Base64::from(match doc.get_document("odo_full") {
+            odo_full: Some(Base64::from(match doc.get_document("ODO_FULL") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
-            dio_alarm: Some(Base64::from(match doc.get_document("dio_alarm") {
+            dio_alarm: Some(Base64::from(match doc.get_document("DIO_ALARM") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
-            driver_id: Some(Base64::from(match doc.get_document("driver_id") {
+            driver_id: Some(Base64::from(match doc.get_document("DRIVER_ID") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
-            dio_in_tor: Some(Base64::from(match doc.get_document("dio_in_tor") {
+            dio_in_tor: Some(Base64::from(match doc.get_document("DIO_IN_TOR") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
-            gps_hdop: Some(Base64::from(match doc.get_document("gps_hdop") {
+            gps_hdop: Some(Base64::from(match doc.get_document("GPS_HDOP") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
-            gps_pdop: Some(Base64::from(match doc.get_document("gps_pdop") {
+            gps_pdop: Some(Base64::from(match doc.get_document("GPS_PDOP") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
-            gps_vdop: Some(Base64::from(match doc.get_document("gps_vdop") {
+            gps_vdop: Some(Base64::from(match doc.get_document("GPS_VDOP") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
-            batt_temp: Some(Base64::from(match doc.get_document("batt_temp") {
+            batt_temp: Some(Base64::from(match doc.get_document("BATT_TEMP") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
-            case_temp: Some(Base64::from(match doc.get_document("case_temp") {
+            case_temp: Some(Base64::from(match doc.get_document("CASE_TEMP") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
             modem_network_operator: Some(Base64::from(
-                match doc.get_document("modem_network_operator") {
+                match doc.get_document("MODEM_NETWORK_OPERATOR") {
                     Ok(e) => Some(e),
-                    Err(e) => None,
+                    Err(_e) => None,
                 },
             )),
             gps_average_pdop_status: Some(Base64::from(
-                match doc.get_document("gps_average_pdop_status") {
+                match doc.get_document("GPS_AVERAGE_PDOP_STATUS") {
                     Ok(e) => Some(e),
-                    Err(e) => None,
+                    Err(_e) => None,
                 },
             )),
             mdi_last_valid_gps_latitude: Some(Base64::from(
-                match doc.get_document("mdi_last_valid_gps_latitude") {
+                match doc.get_document("MDI_LAST_VALID_GPS_LATITUDE") {
                     Ok(e) => Some(e),
-                    Err(e) => None,
+                    Err(_e) => None,
                 },
             )),
             mdi_last_valid_gps_longitude: Some(Base64::from(
-                match doc.get_document("mdi_last_valid_gps_longitude") {
+                match doc.get_document("MDI_LAST_VALID_GPS_LONGITUDE") {
                     Ok(e) => Some(e),
-                    Err(e) => None,
+                    Err(_e) => None,
                 },
             )),
-            area_list: Some(Base64::from(match doc.get_document("area_list") {
+            area_list: Some(Base64::from(match doc.get_document("AREA_LIST") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
-            gps_fixed_sat_num: Some(Base64::from(match doc.get_document("gps_fixed_sat_num") {
+            gps_fixed_sat_num: Some(Base64::from(match doc.get_document("GPS_FIXED_SAT_NUM") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
-            mvt_state: Some(Base64::from(match doc.get_document("mvt_state") {
+            mvt_state: Some(Base64::from(match doc.get_document("MVT_STATE") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
-            boot_reason: Some(Base64::from(match doc.get_document("boot_reason") {
+            boot_reason: Some(Base64::from(match doc.get_document("BOOT_REASON") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
             shutdown_type_and_reason: Some(Base64::from(
-                match doc.get_document("shutdown_type_and_reason") {
+                match doc.get_document("SHUTDOWN_TYPE_AND_REASON") {
                     Ok(e) => Some(e),
-                    Err(e) => None,
+                    Err(_e) => None,
                 },
             )),
-            batt_volt: Some(Base64::from(match doc.get_document("batt_volt") {
+            batt_volt: Some(Base64::from(match doc.get_document("BATT_VOLT") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
-            tx_kbytes: Some(Base64::from(match doc.get_document("tx_kbytes") {
+            tx_kbytes: Some(Base64::from(match doc.get_document("TX_KBYTES") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
-            rx_kbytes: Some(Base64::from(match doc.get_document("rx_kbytes") {
+            rx_kbytes: Some(Base64::from(match doc.get_document("RX_KBYTES") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
-            batt_warmup: Some(Base64::from(match doc.get_document("batt_warmup") {
+            batt_warmup: Some(Base64::from(match doc.get_document("BATT_WARMUP") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
-            batt_charging: Some(Base64::from(match doc.get_document("batt_charging") {
+            batt_charging: Some(Base64::from(match doc.get_document("BATT_CHARGING") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
-            dio_out_tor: Some(Base64::from(match doc.get_document("dio_out_tor") {
+            dio_out_tor: Some(Base64::from(match doc.get_document("DIO_OUT_TOR") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
-            modem_sim_iccid: Some(Base64::from(match doc.get_document("modem_sim_iccid") {
+            modem_sim_iccid: Some(Base64::from(match doc.get_document("MODEM_SIM_ICCID") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
-            modem_sim_imsi: Some(Base64::from(match doc.get_document("modem_sim_imsi") {
+            modem_sim_imsi: Some(Base64::from(match doc.get_document("MODEM_SIM_IMSI") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
-            serial_ppp_state: Some(Base64::from(match doc.get_document("serial_ppp_state") {
+            serial_ppp_state: Some(Base64::from(match doc.get_document("SERIAL_PPP_STATE") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
-            board_id: Some(Base64::from(match doc.get_document("board_id") {
+            board_id: Some(Base64::from(match doc.get_document("BOARD_ID") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
             event: Some(Base64::from(match doc.get_document("event") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
-            mdi_ext_batt_low: Some(Base64::from(match doc.get_document("mdi_ext_batt_low") {
+            mdi_ext_batt_low: Some(Base64::from(match doc.get_document("MDI_EXT_BATT_LOW") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
             mdi_ext_batt_voltage: Some(Base64::from(
-                match doc.get_document("mdi_ext_batt_voltage") {
+                match doc.get_document("MDI_EXT_BATT_VOLTAGE") {
                     Ok(e) => Some(e),
-                    Err(e) => None,
+                    Err(_e) => None,
                 },
             )),
-            odo_partial_meter: Some(Base64::from(match doc.get_document("odo_partial_meter") {
+            odo_partial_meter: Some(Base64::from(match doc.get_document("ODO_PARTIAL_METER") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
-            odo_full_meter: Some(Base64::from(match doc.get_document("odo_full_meter") {
+            odo_full_meter: Some(Base64::from(match doc.get_document("ODO_FULL_METER") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
-            mdi_zone_country: Some(Base64::from(match doc.get_document("mdi_zone_country") {
+            mdi_zone_country: Some(Base64::from(match doc.get_document("MDI_ZONE_COUNTRY") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
-            mdi_zone_state: Some(Base64::from(match doc.get_document("mdi_zone_state") {
+            mdi_zone_state: Some(Base64::from(match doc.get_document("MDI_ZONE_STATE") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
             mdi_vehicle_state_mvt: Some(Base64::from(
-                match doc.get_document("mdi_vehicle_state_mvt") {
+                match doc.get_document("MDI_VEHICLE_STATE_MVT") {
                     Ok(e) => Some(e),
-                    Err(e) => None,
+                    Err(_e) => None,
                 },
             )),
-            mdi_gps_antenna: Some(Base64::from(match doc.get_document("mdi_gps_antenna") {
+            mdi_gps_antenna: Some(Base64::from(match doc.get_document("MDI_GPS_ANTENNA") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
-            mdi_dio_ain1: Some(Base64::from(match doc.get_document("mdi_dio_ain1") {
+            mdi_dio_ain1: Some(Base64::from(match doc.get_document("MDI_DIO_AIN1") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
-            mdi_fuel_type: Some(Base64::from(match doc.get_document("mdi_fuel_type") {
+            mdi_fuel_type: Some(Base64::from(match doc.get_document("MDI_FUEL_TYPE") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
-            mdi_timezone: Some(Base64::from(match doc.get_document("mdi_timezone") {
+            mdi_timezone: Some(Base64::from(match doc.get_document("MDI_TIMEZONE") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
-            mdi_night_and_day: Some(Base64::from(match doc.get_document("mdi_night_and_day") {
+            mdi_night_and_day: Some(Base64::from(match doc.get_document("MDI_NIGHT_AND_DAY") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
             mdi_stat_global_trip_distance: Some(Base64::from(
-                match doc.get_document("mdi_stat_global_trip_distance") {
+                match doc.get_document("MDI_STAT_GLOBAL_TRIP_DISTANCE") {
                     Ok(e) => Some(e),
-                    Err(e) => None,
+                    Err(_e) => None,
                 },
             )),
             mdi_stat_global_trip_fuel_consumed: Some(Base64::from(
-                match doc.get_document("mdi_stat_global_trip_fuel_consumed") {
+                match doc.get_document("MDI_STAT_GLOBAL_TRIP_FUEL_CONSUMED") {
                     Ok(e) => Some(e),
-                    Err(e) => None,
+                    Err(_e) => None,
                 },
             )),
-            mdi_serial_number: Some(Base64::from(match doc.get_document("mdi_serial_number") {
+            mdi_serial_number: Some(Base64::from(match doc.get_document("MDI_SERIAL_NUMBER") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
             mdi_software_version: Some(Base64::from(
-                match doc.get_document("mdi_software_version") {
+                match doc.get_document("MDI_SOFTWARE_VERSION") {
                     Ok(e) => Some(e),
-                    Err(e) => None,
+                    Err(_e) => None,
                 },
             )),
             mdi_unplug_duration: Some(Base64::from(
-                match doc.get_document("mdi_unplug_duration") {
+                match doc.get_document("MDI_UNPLUG_DURATION") {
                     Ok(e) => Some(e),
-                    Err(e) => None,
+                    Err(_e) => None,
                 },
             )),
             mdi_unplug_timestamp: Some(Base64::from(
-                match doc.get_document("mdi_unplug_timestamp") {
+                match doc.get_document("MDI_UNPLUG_TIMESTAMP") {
                     Ok(e) => Some(e),
-                    Err(e) => None,
+                    Err(_e) => None,
                 },
             )),
             mdi_unplug_sporadic: Some(Base64::from(
-                match doc.get_document("mdi_unplug_sporadic") {
+                match doc.get_document("MDI_UNPLUG_SPORADIC") {
                     Ok(e) => Some(e),
-                    Err(e) => None,
+                    Err(_e) => None,
                 },
             )),
             mdi_replug_timestamp: Some(Base64::from(
-                match doc.get_document("mdi_replug_timestamp") {
+                match doc.get_document("MDI_REPLUG_TIMESTAMP") {
                     Ok(e) => Some(e),
-                    Err(e) => None,
+                    Err(_e) => None,
                 },
             )),
-            mdi_unplug_count: Some(Base64::from(match doc.get_document("mdi_unplug_count") {
+            mdi_unplug_count: Some(Base64::from(match doc.get_document("MDI_UNPLUG_COUNT") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })), //------------------OBD Data--------------------------------------
             obd_connected_protocol: Some(Base64::from(
-                match doc.get_document("obd_connected_protocol") {
+                match doc.get_document("OBD_CONNECTED_PROTOCOL") {
                     Ok(e) => Some(e),
-                    Err(e) => None,
+                    Err(_e) => None,
                 },
             )),
             obd_fuel_level_ratio: Some(Base64::from(
-                match doc.get_document("obd_fuel_level_ratio") {
+                match doc.get_document("OBD_FUEL_LEVEL_RATIO") {
                     Ok(e) => Some(e),
-                    Err(e) => None,
+                    Err(_e) => None,
                 },
             )),
-            mdi_obd_fuel_level: Some(Base64::from(match doc.get_document("mdi_obd_fuel_level") {
+            mdi_obd_fuel_level: Some(Base64::from(match doc.get_document("MDI_OBD_FUEL_LEVEL") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
             mdi_obd_engine_load: Some(Base64::from(
-                match doc.get_document("mdi_obd_engine_load") {
+                match doc.get_document("MDI_OBD_ENGINE_LOAD") {
                     Ok(e) => Some(e),
-                    Err(e) => None,
+                    Err(_e) => None,
                 },
             )),
             mdi_obd_fuel_pressure: Some(Base64::from(
-                match doc.get_document("mdi_obd_fuel_pressure") {
+                match doc.get_document("MDI_OBD_FUEL_PRESSURE") {
                     Ok(e) => Some(e),
-                    Err(e) => None,
+                    Err(_e) => None,
                 },
             )),
             mdi_obd_throttle_position: Some(Base64::from(
-                match doc.get_document("mdi_obd_throttle_position") {
+                match doc.get_document("MDI_OBD_THROTTLE_POSITION") {
                     Ok(e) => Some(e),
-                    Err(e) => None,
+                    Err(_e) => None,
                 },
             )),
             mdi_obd_engine_oil_temp: Some(Base64::from(
-                match doc.get_document("mdi_obd_engine_oil_temp") {
+                match doc.get_document("MDI_OBD_ENGINE_OIL_TEMP") {
                     Ok(e) => Some(e),
-                    Err(e) => None,
+                    Err(_e) => None,
                 },
             )),
             mdi_obd_transmission_oil_temp: Some(Base64::from(
-                match doc.get_document("mdi_obd_transmission_oil_temp") {
+                match doc.get_document("MDI_OBD_TRANSMISSION_OIL_TEMP") {
                     Ok(e) => Some(e),
-                    Err(e) => None,
+                    Err(_e) => None,
                 },
             )),
             mdi_obd_engine_oil_pressure: Some(Base64::from(
-                match doc.get_document("mdi_obd_engine_oil_pressure") {
+                match doc.get_document("MDI_OBD_ENGINE_OIL_PRESSURE") {
                     Ok(e) => Some(e),
-                    Err(e) => None,
+                    Err(_e) => None,
                 },
             )),
             mdi_obd_cruise_control: Some(Base64::from(
-                match doc.get_document("mdi_obd_cruise_control") {
+                match doc.get_document("MDI_OBD_CRUISE_CONTROL") {
                     Ok(e) => Some(e),
-                    Err(e) => None,
+                    Err(_e) => None,
                 },
             )),
             mdi_obd_state_water_in_fuel: Some(Base64::from(
-                match doc.get_document("mdi_obd_state_water_in_fuel") {
+                match doc.get_document("MDI_OBD_STATE_WATER_IN_FUEL") {
                     Ok(e) => Some(e),
-                    Err(e) => None,
+                    Err(_e) => None,
                 },
             )),
             mdi_obd_engine_coolant_level: Some(Base64::from(
-                match doc.get_document("mdi_obd_engine_coolant_level") {
+                match doc.get_document("MDI_OBD_ENGINE_COOLANT_LEVEL") {
                     Ok(e) => Some(e),
-                    Err(e) => None,
+                    Err(_e) => None,
                 },
             )),
             mdi_obd_engine_coolant_temp: Some(Base64::from(
-                match doc.get_document("mdi_obd_engine_coolant_temp") {
+                match doc.get_document("MDI_OBD_ENGINE_COOLANT_TEMP") {
                     Ok(e) => Some(e),
-                    Err(e) => None,
+                    Err(_e) => None,
                 },
             )),
             mdi_obd_engine_coolant_pressure: Some(Base64::from(
-                match doc.get_document("mdi_obd_engine_coolant_pressure") {
+                match doc.get_document("MDI_OBD_ENGINE_COOLANT_PRESSURE") {
                     Ok(e) => Some(e),
-                    Err(e) => None,
+                    Err(_e) => None,
                 },
             )),
             mdi_obd_fuel_delivery_pressure: Some(Base64::from(
-                match doc.get_document("mdi_obd_fuel_delivery_pressure") {
+                match doc.get_document("MDI_OBD_FUEL_DELIVERY_PRESSURE") {
                     Ok(e) => Some(e),
-                    Err(e) => None,
+                    Err(_e) => None,
                 },
             )),
             mdi_obd_parking_brake_switch: Some(Base64::from(
-                match doc.get_document("mdi_obd_parking_brake_switch") {
+                match doc.get_document("MDI_OBD_PARKING_BRAKE_SWITCH") {
                     Ok(e) => Some(e),
-                    Err(e) => None,
+                    Err(_e) => None,
                 },
             )),
             mdi_obd_brake_application_pressure: Some(Base64::from(
-                match doc.get_document("mdi_obd_brake_application_pressure") {
+                match doc.get_document("MDI_OBD_BRAKE_APPLICATION_PRESSURE") {
                     Ok(e) => Some(e),
-                    Err(e) => None,
+                    Err(_e) => None,
                 },
             )),
             mdi_obd_brake_pedal_status: Some(Base64::from(
-                match doc.get_document("mdi_obd_brake_pedal_status") {
+                match doc.get_document("MDI_OBD_BRAKE_PEDAL_STATUS") {
                     Ok(e) => Some(e),
-                    Err(e) => None,
+                    Err(_e) => None,
                 },
             )),
-            mdi_obd_stack_name: Some(Base64::from(match doc.get_document("mdi_obd_stack_name") {
+            mdi_obd_stack_name: Some(Base64::from(match doc.get_document("MDI_OBD_STACK_NAME") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
             mdi_obd_brake_pedal_position: Some(Base64::from(
-                match doc.get_document("mdi_obd_brake_pedal_position") {
+                match doc.get_document("MDI_OBD_BRAKE_PEDAL_POSITION") {
                     Ok(e) => Some(e),
-                    Err(e) => None,
+                    Err(_e) => None,
                 },
             )),
-            mdi_obd_vin_alt: Some(Base64::from(match doc.get_document("mdi_obd_vin_alt") {
+            mdi_obd_vin_alt: Some(Base64::from(match doc.get_document("MDI_OBD_VIN_ALT") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
-            mdi_obd_fuel_type: Some(Base64::from(match doc.get_document("mdi_obd_fuel_type") {
+            mdi_obd_fuel_type: Some(Base64::from(match doc.get_document("MDI_OBD_FUEL_TYPE") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
             mdi_obd_monitor_status: Some(Base64::from(
-                match doc.get_document("mdi_obd_monitor_status") {
+                match doc.get_document("MDI_OBD_MONITOR_STATUS") {
                     Ok(e) => Some(e),
-                    Err(e) => None,
+                    Err(_e) => None,
                 },
             )),
-            mdi_obd_vin_hash: Some(Base64::from(match doc.get_document("mdi_obd_vin_hash") {
+            mdi_obd_vin_hash: Some(Base64::from(match doc.get_document("MDI_OBD_VIN_HASH") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
-            mdi_obd_pid_1: Some(Base64::from(match doc.get_document("mdi_obd_pid_1") {
+            mdi_obd_pid_1: Some(Base64::from(match doc.get_document("MDI_OBD_PID_1") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
-            mdi_obd_pid_2: Some(Base64::from(match doc.get_document("mdi_obd_pid_2") {
+            mdi_obd_pid_2: Some(Base64::from(match doc.get_document("MDI_OBD_PID_2") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
-            mdi_obd_pid_3: Some(Base64::from(match doc.get_document("mdi_obd_pid_3") {
+            mdi_obd_pid_3: Some(Base64::from(match doc.get_document("MDI_OBD_PID_3") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
-            mdi_obd_pid_4: Some(Base64::from(match doc.get_document("mdi_obd_pid_4") {
+            mdi_obd_pid_4: Some(Base64::from(match doc.get_document("MDI_OBD_PID_4") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
-            mdi_obd_pid_5: Some(Base64::from(match doc.get_document("mdi_obd_pid_5") {
+            mdi_obd_pid_5: Some(Base64::from(match doc.get_document("MDI_OBD_PID_5") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
-            mdi_obd_squish_vin: Some(Base64::from(match doc.get_document("mdi_obd_squish_vin") {
+            mdi_obd_squish_vin: Some(Base64::from(match doc.get_document("MDI_OBD_SQUISH_VIN") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
             mdi_obd_mileage_meters: Some(Base64::from(
-                match doc.get_document("mdi_obd_mileage_meters") {
+                match doc.get_document("MDI_OBD_MILEAGE_METERS") {
                     Ok(e) => Some(e),
-                    Err(e) => None,
+                    Err(_e) => None,
                 },
             )),
-            mdi_obd_speed: Some(Base64::from(match doc.get_document("mdi_obd_speed") {
+            mdi_obd_speed: Some(Base64::from(match doc.get_document("MDI_OBD_SPEED") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
-            mdi_obd_rpm: Some(Base64::from(match doc.get_document("mdi_obd_rpm") {
+            mdi_obd_rpm: Some(Base64::from(match doc.get_document("MDI_OBD_RPM") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
-            mdi_obd_fuel: Some(Base64::from(match doc.get_document("mdi_obd_fuel") {
+            mdi_obd_fuel: Some(Base64::from(match doc.get_document("MDI_OBD_FUEL") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
-            mdi_obd_vin: Some(Base64::from(match doc.get_document("mdi_obd_vin") {
+            mdi_obd_vin: Some(Base64::from(match doc.get_document("MDI_OBD_VIN") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
-            mdi_obd_mileage: Some(Base64::from(match doc.get_document("mdi_obd_mileage") {
+            mdi_obd_mileage: Some(Base64::from(match doc.get_document("MDI_OBD_MILEAGE") {
                 Ok(e) => Some(e),
-                Err(e) => None,
+                Err(_e) => None,
             })),
             mdi_obd_hev_engine_mode: Some(Base64::from(
-                match doc.get_document("mdi_obd_hev_engine_mode") {
+                match doc.get_document("MDI_OBD_HEV_ENGINE_MODE") {
                     Ok(e) => Some(e),
-                    Err(e) => None,
+                    Err(_e) => None,
                 },
             )),
             mdi_obd_hev_engine_combustion_mode_time: Some(Base64::from(
-                match doc.get_document("mdi_obd_hev_engine_combustion_mode_time") {
+                match doc.get_document("MDI_OBD_HEV_ENGINE_COMBUSTION_MODE_TIME") {
                     Ok(e) => Some(e),
-                    Err(e) => None,
+                    Err(_e) => None,
                 },
             )),
             mdi_obd_hev_engine_electric_mode_time: Some(Base64::from(
-                match doc.get_document("mdi_obd_hev_engine_electric_mode_time") {
+                match doc.get_document("MDI_OBD_HEV_ENGINE_ELECTRIC_MODE_TIME") {
                     Ok(e) => Some(e),
-                    Err(e) => None,
+                    Err(_e) => None,
                 },
             )),
             mdi_obd_hev_charging_state: Some(Base64::from(
-                match doc.get_document("mdi_obd_hev_charging_state") {
+                match doc.get_document("MDI_OBD_HEV_CHARGING_STATE") {
                     Ok(e) => Some(e),
-                    Err(e) => None,
+                    Err(_e) => None,
                 },
             )),
             mdi_obd_hev_battery_voltage: Some(Base64::from(
-                match doc.get_document("mdi_obd_hev_battery_voltage") {
+                match doc.get_document("MDI_OBD_HEV_BATTERY_VOLTAGE") {
                     Ok(e) => Some(e),
-                    Err(e) => None,
+                    Err(_e) => None,
                 },
             )),
             mdi_obd_hev_battery_current: Some(Base64::from(
-                match doc.get_document("mdi_obd_hev_battery_current") {
+                match doc.get_document("MDI_OBD_HEV_BATTERY_CURRENT") {
                     Ok(e) => Some(e),
-                    Err(e) => None,
+                    Err(_e) => None,
                 },
             )),
             mdi_obd_hev_battery_state_of_charge: Some(Base64::from(
-                match doc.get_document("mdi_obd_hev_battery_state_of_charge") {
+                match doc.get_document("MDI_OBD_HEV_BATTERY_STATE_OF_CHARGE") {
                     Ok(e) => Some(e),
-                    Err(e) => None,
+                    Err(_e) => None,
                 },
             )),
             mdi_obd_hev_state_supported: Some(Base64::from(
-                match doc.get_document("mdi_obd_hev_state_supported") {
+                match doc.get_document("MDI_OBD_HEV_STATE_SUPPORTED") {
                     Ok(e) => Some(e),
-                    Err(e) => None,
+                    Err(_e) => None,
                 },
             )),
             mdi_obd_co2_emissions: Some(Base64::from(
-                match doc.get_document("mdi_obd_co2_emissions") {
+                match doc.get_document("MDI_OBD_CO2_EMISSIONS") {
                     Ok(e) => Some(e),
-                    Err(e) => None,
+                    Err(_e) => None,
                 },
             )),
             obd_supported_pids_00: Some(Base64::from(
-                match doc.get_document("obd_supported_pids_00") {
+                match doc.get_document("OBD_SUPPORTED_PIDS_00") {
                     Ok(e) => Some(e),
-                    Err(e) => None,
+                    Err(_e) => None,
                 },
             )),
             mdi_obd_distance_since_dtc_cleared: Some(Base64::from(
-                match doc.get_document("mdi_obd_distance_since_dtc_cleared") {
+                match doc.get_document("MDI_OBD_DISTANCE_SINCE_DTC_CLEARED") {
                     Ok(e) => Some(e),
-                    Err(e) => None,
+                    Err(_e) => None,
                 },
             )),
             mdi_obd_time_since_dtc_cleared: Some(Base64::from(
-                match doc.get_document("mdi_obd_time_since_dtc_cleared") {
+                match doc.get_document("MDI_OBD_TIME_SINCE_DTC_CLEARED") {
                     Ok(e) => Some(e),
-                    Err(e) => None,
+                    Err(_e) => None,
                 },
             )),
             mdi_ext_volt_snapshot: Some(Base64::from(
-                match doc.get_document("mdi_ext_volt_snapshot") {
+                match doc.get_document("MDI_EXT_VOLT_SNAPSHOT") {
                     Ok(e) => Some(e),
-                    Err(e) => None,
+                    Err(_e) => None,
                 },
             )),
             mdi_obd_ambient_air_temperature: Some(Base64::from(
-                match doc.get_document("mdi_obd_ambient_air_temperature") {
+                match doc.get_document("MDI_OBD_AMBIENT_AIR_TEMPERATURE") {
                     Ok(e) => Some(e),
-                    Err(e) => None,
+                    Err(_e) => None,
                 },
             )),
             mdi_obd_barometric_pressure: Some(Base64::from(
-                match doc.get_document("mdi_obd_barometric_pressure") {
+                match doc.get_document("MDI_OBD_BAROMETRIC_PRESSURE") {
                     Ok(e) => Some(e),
-                    Err(e) => None,
+                    Err(_e) => None,
                 },
             )),
         };

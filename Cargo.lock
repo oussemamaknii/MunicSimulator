@@ -3,35 +3,6 @@
 version = 3
 
 [[package]]
-name = "MunicSimulator"
-version = "0.1.0"
-dependencies = [
- "bson",
- "chrono",
- "dns-lookup",
- "dotenvy",
- "futures",
- "google_maps",
- "is_empty",
- "mongodb",
- "polyline",
- "reqwest",
- "rocket 0.5.0-rc.2",
- "rocket-multipart-form-data",
- "rocket_contrib",
- "rocket_dyn_templates",
- "rust_socketio",
- "serde",
- "serde_json",
- "serde_with 2.3.1",
- "substring",
- "tokio",
- "tokio-stream",
- "url 2.3.1",
- "winping",
-]
-
-[[package]]
 name = "adler"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1802,6 +1773,35 @@ dependencies = [
  "tokio",
  "tokio-util",
  "version_check 0.9.4",
+]
+
+[[package]]
+name = "munic_simulator"
+version = "0.1.0"
+dependencies = [
+ "bson",
+ "chrono",
+ "dns-lookup",
+ "dotenvy",
+ "futures",
+ "google_maps",
+ "is_empty",
+ "mongodb",
+ "polyline",
+ "reqwest",
+ "rocket 0.5.0-rc.2",
+ "rocket-multipart-form-data",
+ "rocket_contrib",
+ "rocket_dyn_templates",
+ "rust_socketio",
+ "serde",
+ "serde_json",
+ "serde_with 2.3.1",
+ "substring",
+ "tokio",
+ "tokio-stream",
+ "url 2.3.1",
+ "winping",
 ]
 
 [[package]]
