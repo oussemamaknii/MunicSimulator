@@ -39,13 +39,13 @@ pub struct Presence {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct req<T> {
-    pub meta: event,
+pub struct Req<T> {
+    pub meta: Eveent,
     pub payload: T,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct event {
+pub struct Eveent {
     pub account: String,
     pub event: String,
 }

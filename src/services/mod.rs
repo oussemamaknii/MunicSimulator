@@ -16,7 +16,7 @@ use rocket_multipart_form_data::{
     mime, MultipartFormData, MultipartFormDataField, MultipartFormDataOptions,
 };
 
-use models::{event, req, Fields};
+use models::{Eveent, Fields, Req};
 use mongodb::{
     options::{ClientOptions, ResolverConfig},
     Client,
@@ -228,7 +228,7 @@ async fn send_tracks(
 
     let mut index = 0;
 
-    let mut tracks_array: Vec<req<Tracks>> = vec![];
+    let mut tracks_array: Vec<Req<Tracks>> = vec![];
 
     'outer: for step in &json_data.steps {
         use substring::Substring;
@@ -270,8 +270,8 @@ async fn send_tracks(
 
             let builder = {
                 if get_value() == 1 {
-                    client.post(url).json(&req {
-                        meta: event {
+                    client.post(url).json(&Req {
+                        meta: Eveent {
                             event: "track".to_string(),
                             account: "municio".to_string(),
                         },
@@ -314,8 +314,8 @@ async fn send_tracks(
                 },
                 Err(_err) => match get_value() {
                     1 => {
-                        tracks_array.push(req {
-                            meta: event {
+                        tracks_array.push(Req {
+                            meta: Eveent {
                                 event: "track".to_string(),
                                 account: "municio".to_string(),
                             },
@@ -347,8 +347,8 @@ async fn send_tracks(
                         });
                         set_value(0);
                     }
-                    0 => tracks_array.push(req {
-                        meta: event {
+                    0 => tracks_array.push(Req {
+                        meta: Eveent {
                             event: "track".to_string(),
                             account: "municio".to_string(),
                         },
@@ -452,7 +452,7 @@ pub async fn test() -> () {
 
     let mut index = 0;
 
-    let mut tracks_array: Vec<req<Tracks>> = vec![];
+    let mut tracks_array: Vec<Req<Tracks>> = vec![];
 
     'outer: for step in &json_data.steps {
         use substring::Substring;
@@ -495,8 +495,8 @@ pub async fn test() -> () {
 
             let builder = {
                 if get_value() == 1 {
-                    client.post("http://localhost:5000/simulate").json(&req {
-                        meta: event {
+                    client.post("http://localhost:5000/simulate").json(&Req {
+                        meta: Eveent {
                             event: "track".to_string(),
                             account: "municio".to_string(),
                         },
@@ -544,8 +544,8 @@ pub async fn test() -> () {
                 },
                 Err(_err) => match get_value() {
                     1 => {
-                        tracks_array.push(req {
-                            meta: event {
+                        tracks_array.push(Req {
+                            meta: Eveent {
                                 event: "track".to_string(),
                                 account: "municio".to_string(),
                             },
@@ -577,8 +577,8 @@ pub async fn test() -> () {
                         });
                         set_value(0);
                     }
-                    0 => tracks_array.push(req {
-                        meta: event {
+                    0 => tracks_array.push(Req {
+                        meta: Eveent {
                             event: "track".to_string(),
                             account: "municio".to_string(),
                         },
