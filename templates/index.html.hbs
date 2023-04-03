@@ -3,10 +3,70 @@
 <title>Munic Simulator</title>
 
 <head>
+  <link href="https://cdn.materialdesignicons.com/5.4.55/css/materialdesignicons.min.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700" rel="stylesheet">
   <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.4.1/css/all.css"
     integrity="sha384-5sAR7xN1Nv6T6+dT2mhtzEpVJvfS3NScPQTrOxhwjIuvcA67KV2R5Jz6kr4abQsz" crossorigin="anonymous">
   <style>
+    .label-file {
+      cursor: pointer;
+      color: #00b1ca;
+      font-weight: bold;
+      margin-right: 14%;
+      margin-left: 14%;
+    }
+
+    .label-file:hover {
+      color: #25a5c4;
+    }
+
+    .input-file {
+      display: none;
+    }
+
+    .alert {
+      border-radius: 12px;
+      width: 700px;
+      max-width: 90%;
+      padding: 16px 22px 17px 20px;
+      display: flex;
+      align-items: center;
+      margin-left: auto;
+      margin-right: auto;
+      margin-bottom: 10px;
+    }
+
+    .alert-warning {
+      background: #f2a600;
+    }
+
+    .alert .icon__wrapper {
+      height: 34px;
+      width: 34px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.253);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .alert .icon__wrapper span {
+      font-size: 21px;
+      color: #fff;
+    }
+
+    .alert p {
+      color: #fff;
+      font-family: Verdana;
+      margin-left: 10px;
+    }
+
+    .alert p a,
+    .alert p a:visited,
+    .alert p a:active {
+      color: #fff;
+    }
+
     .content {
       display: flex;
       justify-content: space-between;
@@ -39,6 +99,12 @@
       display: inline-block;
       margin-right: 10px;
       color: red;
+    }
+
+    .waiting {
+      display: inline-block;
+      margin-right: 10px;
+      color: yellow;
     }
 
     html,
@@ -119,13 +185,31 @@
 </head>
 
 <body>
+  <form enctype='multipart/form-data' method="post" action="/upload">
+    <div class="formcontainer">
+      <div class="container">
+        <div class="content">
+          <label for="track_json_file" class="label-file"><strong>Upload a Track json file</strong></label>
+
+          <input type="file" id="track_json_file" class="input-file" name="track_json_file" accept="application/json">
+
+          <label for="presence_json_file" class="label-file"><strong>Upload a Presence json file</strong></label>
+
+          <input type="file" id="presence_json_file" class="input-file" name="presence_json_file"
+            accept="application/json">
+        </div>
+        <button type="submit" id="upload_button" style="margin-left: 26%;"><strong>Upload !!</strong></button>
+
+      </div>
+  </form>
+
   <form id="cord_form" method="post" action="/simulate">
     {{!-- <form id="cord_form" enctype='multipart/form-data' method="post" action="/file"> --}}
       <div class="formcontainer">
         <div class="container">
 
           <label><strong>Your URL :</strong></label>
-          <input name="url" id="url" type="text" placeholder="Enter your Notification URL" required>
+          <input name="url" id="url" type="text" placeholder="Enter your Notification URL">
           <p>{{ msg }}</p>
 
           <div id="http-div">
@@ -134,57 +218,95 @@
           </div>
 
           <h1>Coordinates</h1>
+          <div class="alert alert-warning">
+            <div class="icon__wrapper">
+              <span class="mdi mdi-alert-outline"></span>
+            </div>
+            <p>You are replaying the exact same trip picked by date and file !! if you want to simulate using real
+              Coordinates in real time and customized fields, please enter a valid
+              google maps api key !
+              <a href="https://developers.google.com/maps/documentation/javascript/get-api-key?hl=fr">How to cretae
+                one
+                !</a>
+            </p>
+          </div>
+          <label><strong>Google maps API KEY</strong></label>
+          <input name="key" id="key" type="password" placeholder="Enter your GM API KEY">
           <label><strong>Source</strong></label>
-          <input name="lat" id="lat" type="text" placeholder="Enter Source Location" required>
+          <input name="lat" id="lat" type="text" placeholder="Enter Source Location">
           <label><strong>Destination</strong></label>
-          <input name="lon" id="lon" type="text" placeholder="Enter Destination Location" required>
+          <input name="lon" id="lon" type="text" placeholder="Enter Destination Location">
 
           <div id="http-div" class="content">
-            <label><strong>Choose a presence date </strong></label>
+            <label><strong>Choose a track file </strong></label>
             <div class="select">
-              <select name="presence_option" id="p_select">
-                {{#each presence_dates}}
-                <option id="slct"> {{this._id.year}}-{{this._id.month}}-{{this._id.day}}</option>
-                {{/each}}
+              <select name="track_option" id="tf_select">
+                {{unique track_dates}}
+                <option id="slct" value="{{this._id.file}}"> {{this._id.file}} </option>
+
               </select>
             </div>
-            <label><strong>Choose a track date </strong></label>
+            <label><strong>Choose a presence file </strong></label>
             <div class="select">
-              <select name="track_option" id="t_select">
-                {{#each track_dates}}
-                <option id="slct"> {{this._id.year}}-{{this._id.month}}-{{this._id.day}} </option>
+              <select name="presence_option" id="pf_select">
+                {{#each presence_dates}}
+                <option id="slct" value="{{this._id.file}}"> {{this._id.file}}</option>
                 {{/each}}
               </select>
             </div>
           </div>
-          <label><strong>Upload a Track json file</strong></label>
 
-          <input type="file" id="json_file" name="json_file" accept="application/json">
-
+          <div id="http-div" class="content">
+            <label><strong>Choose a track date </strong></label>
+            <div class="select">
+              <select name="track_option" id="t_select">
+                {{#each track_dates}}
+                <option id="slct" value="{{this._id.year}}-{{this._id.month}}-{{this._id.day}}">
+                  {{this._id.year}}-{{this._id.month}}-{{this._id.day}} </option>
+                {{/each}}
+              </select>
+            </div>
+            <label><strong>Choose a presence date </strong></label>
+            <div class="select">
+              <select name="presence_option" id="p_select">
+                {{#each presence_dates}}
+                <option id="slct" value="{{this._id.year}}-{{this._id.month}}-{{this._id.day}}">
+                  {{this._id.year}}-{{this._id.month}}-{{this._id.day}}</option>
+                {{/each}}
+              </select>
+            </div>
+          </div>
         </div>
         <button type="submit" id="button"><strong>Simulate !!</strong></button>
     </form>
 </body>
 <script src="https://unpkg.com/validator@latest/validator.min.js"></script>
 <script type="text/javascript">
-  const selectElement = document.getElementById("url");
+  const url = document.getElementById("url");
+  const presence_json_file = document.getElementById("presence_json_file");
+  const track_json_file = document.getElementById("track_json_file");
   const button1 = document.getElementById("button");
+  const upload_button = document.getElementById("upload_button");
   const http = document.getElementById("http");
   const http_div = document.getElementById("http-div");
+  const key = document.getElementById("key");
+  const lon = document.getElementById("lon");
+  const lat = document.getElementById("lat");
   const newSpan = document.getElementById("newSpan");
+  lon.disabled = true;
+  lat.disabled = true;
+  button1.disabled = true;
+  upload_button.disabled = true;
   const evtSource = new EventSource("/events");
 
-  var x = document.getElementById("p_select");
+  var x = document.getElementById("pf_select");
 
-  var i;
-  for (i = 0; i < x.length; i++) {
-    x.options[i].value = x.options[i].text;
-  };
-
-  var t = document.getElementById("t_select");
-
-  for (i = 0; i < t.length; i++) {
-    t.options[i].value = t.options[i].text;
+  for (var i = 0; i < x.length - 1; i++) {
+    for (var j = i + 1; j < x.length; j++) {
+      if (x.options[i].value != x.options[i].value) {
+        arr.push(x.options[i].value);
+      }
+    };
   };
 
   evtSource.onopen = function () {
@@ -196,9 +318,13 @@
       newSpan.setAttribute('class', 'logged-in');
       http.textContent = "HTTP Request Status : 200";
     }
-    else {
+    else if (e.data == 0) {
       newSpan.setAttribute('class', 'logged-out');
-      http.textContent = "HTTP Request Status : 500";
+      http.textContent = "HTTP Request Status : 503";
+    }
+    else {
+      newSpan.setAttribute('class', 'waiting');
+      http.textContent = "HTTP Request Status : _";
     }
   };
 
@@ -206,10 +332,36 @@
     console.log("EventSource failed.");
   };
 
-  selectElement.addEventListener("input", (event) => {
-    button1.disabled = !validator.isURL(event.target.value);
+
+  key.addEventListener("input", (event) => {
+    if (key.value == "") {
+      lon.disabled = true;
+      lat.disabled = true;
+    } else {
+      lat.disabled = false;
+      lon.disabled = false;
+    }
   });
 
+  track_json_file.addEventListener("change", (event) => {
+    if (event.target.files[0]) {
+      upload_button.disabled = false;
+    } else {
+      upload_button.disabled = true;
+    }
+  });
+
+  presence_json_file.addEventListener("change", (event) => {
+    if (event.target.files[0]) {
+      upload_button.disabled = false;
+    } else {
+      upload_button.disabled = true;
+    }
+  });
+
+  url.addEventListener("input", (event) => {
+    button1.disabled = !validator.isURL(event.target.value);
+  });
 </script>
 
 </html>
