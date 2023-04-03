@@ -3,6 +3,7 @@
 extern crate chrono;
 extern crate rocket;
 use crate::models::{self, Presence, Tracks};
+use bson::doc;
 use mongodb::Collection;
 use rocket::response::stream::{Event, EventStream};
 use rocket::response::Redirect;
@@ -34,7 +35,7 @@ use url::Url;
 
 use core::sync::atomic::{AtomicUsize, Ordering};
 
-static STATE: AtomicUsize = AtomicUsize::new(1);
+static STATE: AtomicUsize = AtomicUsize::new(3);
 
 pub fn set_value(val: usize) {
     STATE.store(val, Ordering::Relaxed)
@@ -44,32 +45,36 @@ pub fn get_value() -> usize {
     STATE.load(Ordering::Relaxed)
 }
 
-#[post("/file", data = "<data>")]
+#[post("/upload", data = "<data>")]
 pub async fn file_json(content_type: &ContentType, data: Data<'_>) -> () {
     let options = MultipartFormDataOptions::with_multipart_form_data_fields(vec![
-        MultipartFormDataField::file("json_file")
+        MultipartFormDataField::file("track_json_file")
             .content_type_by_string(Some(mime::APPLICATION_JSON))
             .unwrap(),
-        MultipartFormDataField::text("url"),
-        MultipartFormDataField::text("lon"),
-        MultipartFormDataField::text("lat"),
-        MultipartFormDataField::text("track_option"),
-        MultipartFormDataField::text("presence_option"),
+        MultipartFormDataField::file("presence_json_file")
+            .content_type_by_string(Some(mime::APPLICATION_JSON))
+            .unwrap(),
+        // MultipartFormDataField::text("url"),
+        // MultipartFormDataField::text("lon"),
+        // MultipartFormDataField::text("lat"),
+        // MultipartFormDataField::text("track_option"),
+        // MultipartFormDataField::text("presence_option"),
     ]);
 
     let multipart_form_data = MultipartFormData::parse(content_type, data, options)
         .await
         .unwrap();
 
-    let file = multipart_form_data.files.get("json_file");
+    let track_json_file = multipart_form_data.files.get("track_json_file");
+    let presence_json_file = multipart_form_data.files.get("presence_json_file");
     // let url_text = multipart_form_data.texts.remove("url");
     // let lon_text = multipart_form_data.texts.remove("lon");
     // let lat_text = multipart_form_data.texts.remove("lat");
     // let track_option = multipart_form_data.texts.remove("track_option");
     // let presence_option = multipart_form_data.texts.remove("presence_option");
 
-    if let Some(file_fields) = file {
-        let file_field = &file_fields[0];
+    if let Some(tfile_fields) = track_json_file {
+        let file_field = &tfile_fields[0];
 
         let _content_type = &file_field.content_type;
         let _file_name = &file_field.file_name;
@@ -89,6 +94,45 @@ pub async fn file_json(content_type: &ContentType, data: Data<'_>) -> () {
             Ok(_c) => (),
             Err(_e) => panic!("rename panic !"),
         }
+        match store_tracks(_file_name).await {
+            Ok(_ok) => (),
+            Err(_err) => panic!("store panic !"),
+        };
+        match update_tracks(_file_name).await {
+            Ok(_ok) => (),
+            Err(_err) => panic!("store panic !"),
+        };
+    }
+
+    if let Some(pfile_fields) = presence_json_file {
+        let file_field = &pfile_fields[0];
+
+        let _content_type = &file_field.content_type;
+        let _file_name = &file_field.file_name;
+        let _path = &file_field.path;
+
+        // let curr = env::current_dir().unwrap();
+        let mut path = PathBuf::new();
+
+        // path.push(curr);
+        path.push("C:\\Users\\makni_o\\\\Documents\\MunicSimulator\\uploads\\");
+        match _file_name {
+            Some(name) => path.push(name),
+            None => return (),
+        }
+
+        match fs::rename(_path, path) {
+            Ok(_c) => (),
+            Err(_e) => panic!("rename panic !"),
+        }
+        match store_presence(_file_name).await {
+            Ok(_ok) => (),
+            Err(_err) => panic!("store panic !"),
+        };
+        match update_presence(_file_name).await {
+            Ok(_ok) => (),
+            Err(_err) => panic!("store panic !"),
+        };
     }
 }
 
@@ -144,6 +188,7 @@ pub fn simulate(user_input: Form<UserInput>) -> Redirect {
                     .execute()
                     .await;
 
+                set_value(1);
                 send_tracks(
                     directions,
                     &new_user_input.url.clone(),
@@ -176,7 +221,6 @@ async fn send_tracks(
     let json_data = &directions.unwrap().routes[0].legs[0];
 
     use dotenvy::dotenv;
-    use mongodb::bson::doc;
     dotenv().ok();
 
     let client_uri =
@@ -201,6 +245,7 @@ async fn send_tracks(
         }
     }
     let pipeline = vec![
+        doc! {"$match": { "fields": { "$gt": {} } }  },
         doc! {"$addFields": { "date": { "$toDate": "$recorded_at" } }  },
         doc! {"$addFields": { "subs": {"$substr": [ "$recorded_at", 0, 10 ]} }},
         doc! {
@@ -224,9 +269,9 @@ async fn send_tracks(
         .map_err(|e| println!("{}", e))
         .unwrap();
 
-    println!("{:?}", tracks.len());
-
     let mut index = 0;
+
+    let client = reqwest::Client::new();
 
     let mut tracks_array: Vec<Req<Tracks>> = vec![];
 
@@ -235,11 +280,6 @@ async fn send_tracks(
         use tokio::time::Duration;
 
         let result = polyline::decode_polyline(&step.polyline.points, 6).unwrap();
-        let mut count = 0;
-
-        for _ in &result {
-            count = count + 1;
-        }
 
         let mut ten_minutes = time::interval(
             Duration::from_secs_f64(
@@ -249,7 +289,7 @@ async fn send_tracks(
                     .parse::<u64>()
                     .unwrap())
                     * 60) as f64
-                    / count as f64,
+                    / result.num_coords() as f64,
             )
             .try_into()
             .unwrap(),
@@ -258,7 +298,6 @@ async fn send_tracks(
         for coord in &result {
             ten_minutes.tick().await;
             println!("sending ...");
-            let client = reqwest::Client::new();
 
             use chrono::Duration;
 
@@ -270,7 +309,7 @@ async fn send_tracks(
 
             let builder = {
                 if get_value() == 1 {
-                    client.post(url).json(&Req {
+                    client.post(url).json(&vec![Req {
                         meta: Eveent {
                             event: "track".to_string(),
                             account: "municio".to_string(),
@@ -299,7 +338,7 @@ async fn send_tracks(
                             fields: Fields::from(tracks[index].get_document("fields").unwrap()),
                             url: Some(tracks[index].get_str("url").unwrap().to_string()),
                         },
-                    })
+                    }])
                 } else {
                     client.post(url).json(&tracks_array)
                 }
@@ -400,6 +439,8 @@ pub async fn test() -> () {
         .execute()
         .await;
 
+    set_value(1);
+
     let json_data = &directions.unwrap().routes[0].legs[0];
 
     use dotenvy::dotenv;
@@ -418,7 +459,7 @@ pub async fn test() -> () {
 
     let tracks_collection = client.database("munic").collection::<Tracks>("tracks");
 
-    // counting how many records
+    // counting records
     let mut number_of_records_needed = 0;
 
     for step in &json_data.steps {
@@ -430,9 +471,9 @@ pub async fn test() -> () {
     }
 
     let pipeline = vec![
+        doc! {"$match": { "fields": { "$ne": {} } }  },
         doc! { "$sample": { "size": number_of_records_needed } },
         doc! {"$addFields": { "date": { "$toDate": "$recorded_at" } }  },
-        doc! {"$match": { "fields": { "$ne": {} } }  },
         doc! {"$sort": { "date" : 1 }},
     ];
 
@@ -452,6 +493,8 @@ pub async fn test() -> () {
 
     let mut index = 0;
 
+    let client = reqwest::Client::new();
+
     let mut tracks_array: Vec<Req<Tracks>> = vec![];
 
     'outer: for step in &json_data.steps {
@@ -459,11 +502,6 @@ pub async fn test() -> () {
         use tokio::time::Duration;
 
         let result = polyline::decode_polyline(&step.polyline.points, 5).unwrap();
-        let mut count = 0;
-
-        for _ in &result {
-            count = count + 1;
-        }
 
         let mut ten_minutes = time::interval(
             Duration::from_secs_f64(
@@ -473,7 +511,7 @@ pub async fn test() -> () {
                     .parse::<u64>()
                     .unwrap())
                     * 60) as f64
-                    / count as f64,
+                    / result.num_coords() as f64,
             )
             .try_into()
             .unwrap(),
@@ -482,7 +520,6 @@ pub async fn test() -> () {
         for coord in &result {
             ten_minutes.tick().await;
             println!("sending ...");
-            let client = reqwest::Client::new();
 
             use chrono::Duration;
             use chrono::Local;
@@ -495,36 +532,39 @@ pub async fn test() -> () {
 
             let builder = {
                 if get_value() == 1 {
-                    client.post("http://localhost:5000/simulate").json(&Req {
-                        meta: Eveent {
-                            event: "track".to_string(),
-                            account: "municio".to_string(),
-                        },
-                        payload: Tracks {
-                            id: tracks[index].get_i64("id").unwrap() as i64,
-                            id_str: Some(tracks[index].get_str("id_str").unwrap().to_string()),
-                            location: Some([coord.x, coord.y]),
-                            loc: Some([coord.x, coord.y]),
-                            asset: Some(tracks[index].get_str("asset").unwrap().to_string()),
-                            recorded_at: Some(
-                                (Local::now() - Duration::minutes(2))
-                                    .format("%Y-%m-%dT%H:%M:%SZ")
-                                    .to_string(),
-                            ),
-                            recorded_at_ms: Some(
-                                (Local::now() - Duration::minutes(2))
-                                    .format("%Y-%m-%dT%H:%M:%S%.3fZ")
-                                    .to_string(),
-                            ),
-                            received_at: Some(
-                                (Local::now()).format("%Y-%m-%dT%H:%M:%SZ").to_string(),
-                            ),
-                            connection_id: tracks[index].get_i64("connection_id").unwrap() as i64,
-                            index: tracks[index].get_i64("index").unwrap() as i64,
-                            fields: Fields::from(tracks[index].get_document("fields").unwrap()),
-                            url: Some(tracks[index].get_str("url").unwrap().to_string()),
-                        },
-                    })
+                    client
+                        .post("http://localhost:5000/simulate")
+                        .json(&vec![Req {
+                            meta: Eveent {
+                                event: "track".to_string(),
+                                account: "municio".to_string(),
+                            },
+                            payload: Tracks {
+                                id: tracks[index].get_i64("id").unwrap() as i64,
+                                id_str: Some(tracks[index].get_str("id_str").unwrap().to_string()),
+                                location: Some([coord.x, coord.y]),
+                                loc: Some([coord.x, coord.y]),
+                                asset: Some(tracks[index].get_str("asset").unwrap().to_string()),
+                                recorded_at: Some(
+                                    (Local::now() - Duration::minutes(2))
+                                        .format("%Y-%m-%dT%H:%M:%SZ")
+                                        .to_string(),
+                                ),
+                                recorded_at_ms: Some(
+                                    (Local::now() - Duration::minutes(2))
+                                        .format("%Y-%m-%dT%H:%M:%S%.3fZ")
+                                        .to_string(),
+                                ),
+                                received_at: Some(
+                                    (Local::now()).format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+                                ),
+                                connection_id: tracks[index].get_i64("connection_id").unwrap()
+                                    as i64,
+                                index: tracks[index].get_i64("index").unwrap() as i64,
+                                fields: Fields::from(tracks[index].get_document("fields").unwrap()),
+                                url: Some(tracks[index].get_str("url").unwrap().to_string()),
+                            },
+                        }])
                 } else {
                     client
                         .post("http://localhost:5000/simulate")
@@ -693,7 +733,7 @@ pub async fn indexx() -> Template {
         doc! {"$addFields": { "date": { "$toDate": "$recorded_at" } }  },
         doc! {"$sort": { "date" : 1 }},
         doc! {"$group":  {
-            "_id": { "year": { "$year": "$date" }, "month": { "$month": "$date" }, "day": { "$dayOfMonth": "$date" } }
+            "_id": { "file": "$file","year": { "$year": "$date" },  "month": { "$month": "$date" }, "day": { "$dayOfMonth": "$date" } }
         }},
     ];
     let pres_pipeline = vec![
@@ -723,11 +763,14 @@ pub async fn indexx() -> Template {
         .await
         .map_err(|e| println!("{}", e))
         .unwrap();
+
     let presence_dates: Vec<_> = presence_data
         .try_collect()
         .await
         .map_err(|e| println!("{}", e))
         .unwrap();
+
+    // println!("{:?}", track_dates);
 
     Template::render(
         "index",
@@ -749,28 +792,33 @@ async fn get_client() -> Result<Client, Box<dyn Error + Send + Sync>> {
     Ok(client)
 }
 
-#[get("/store_presence")]
-pub async fn store_p() -> Redirect {
-    tokio::spawn(async move {
-        match store_presence().await {
-            Ok(_e) => (),
-            Err(_e) => panic!("presence storage panic !!"),
-        }
-    });
-    Redirect::to(uri!(index("Presences Stored Successfully")))
-}
+// #[get("/store_presence")]
+// pub async fn store_p() -> Redirect {
+//     tokio::spawn(async move {
+//         match store_presence().await {
+//             Ok(_e) => (),
+//             Err(_e) => panic!("presence storage panic !!"),
+//         }
+//     });
+//     Redirect::to(uri!(index("Presences Stored Successfully")))
+// }
 
-#[get("/store_tracks")]
-pub async fn store_t() -> Redirect {
-    tokio::spawn(async move { store_tracks().await });
-    Redirect::to(uri!(index("Tracks Stored Successfully")))
-}
+// #[get("/store_tracks")]
+// pub async fn store_t() -> Redirect {
+//     tokio::spawn(async move { store_tracks().await });
+//     Redirect::to(uri!(index("Tracks Stored Successfully")))
+// }
 
-async fn store_presence() -> Result<(), Box<dyn Error + Send + Sync>> {
+async fn store_presence(file: &Option<String>) -> Result<(), Box<dyn Error + Send + Sync>> {
     use dotenvy::dotenv;
     dotenv().ok();
 
-    let data = fs::read_to_string("./uploads/presence.json").expect("Unable to read file");
+    let data = match file {
+        Some(file_name) => {
+            fs::read_to_string("./uploads/".to_owned() + file_name).expect("Unable to read file")
+        }
+        None => "".to_owned(),
+    };
 
     let json_data: Vec<Presence> = serde_json::from_str(&data).expect("Unable to read file");
 
@@ -793,11 +841,16 @@ async fn store_presence() -> Result<(), Box<dyn Error + Send + Sync>> {
     Ok(())
 }
 
-async fn store_tracks() -> Result<(), Box<dyn Error + Send + Sync>> {
+async fn store_tracks(file: &Option<String>) -> Result<(), Box<dyn Error + Send + Sync>> {
     use dotenvy::dotenv;
     dotenv().ok();
 
-    let data = fs::read_to_string("./uploads/tracks.json").expect("Unable to read file");
+    let data = match file {
+        Some(file_name) => {
+            fs::read_to_string("./uploads/".to_owned() + file_name).expect("Unable to read file")
+        }
+        None => "".to_owned(),
+    };
 
     let json_data: Vec<Tracks> = serde_json::from_str(&data).expect("Unable to read file");
 
@@ -817,6 +870,40 @@ async fn store_tracks() -> Result<(), Box<dyn Error + Send + Sync>> {
             Err(_e) => panic!("track storage panic !!"),
         }
     }
+    Ok(())
+}
+
+async fn update_tracks(file: &Option<String>) -> Result<(), Box<dyn Error + Send + Sync>> {
+    let client_uri =
+        env::var("MONGODB_URI").expect("You must set the MONGODB_URI environment var!");
+
+    let options =
+        ClientOptions::parse_with_resolver_config(&client_uri, ResolverConfig::cloudflare())
+            .await?;
+    let client = Client::with_options(options)?;
+
+    let collection: Collection<Tracks> = client.database("munic").collection("tracks");
+
+    let filter = doc! {"file":{"$exists":false}};
+    let update = doc! {"$set": {"file":file}};
+    collection.update_many(filter, update, None).await.unwrap();
+    Ok(())
+}
+
+async fn update_presence(file: &Option<String>) -> Result<(), Box<dyn Error + Send + Sync>> {
+    let client_uri =
+        env::var("MONGODB_URI").expect("You must set the MONGODB_URI environment var!");
+
+    let options =
+        ClientOptions::parse_with_resolver_config(&client_uri, ResolverConfig::cloudflare())
+            .await?;
+    let client = Client::with_options(options)?;
+
+    let collection: Collection<Tracks> = client.database("munic").collection("presences");
+
+    let filter = doc! {"file":{"$exists":false}};
+    let update = doc! {"$set": {"file":file}};
+    collection.update_many(filter, update, None).await.unwrap();
     Ok(())
 }
 
