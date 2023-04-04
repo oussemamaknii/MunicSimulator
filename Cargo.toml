@@ -28,7 +28,7 @@ is_empty = "0.2.0"
 rocket-multipart-form-data = "0.10.5"
 
 [dependencies.rocket_dyn_templates]
-features = ["handlebars"]
+features = ["tera"]
 
 [dependencies.rocket_contrib]
 version = "0.4.10"

@@ -1,37 +1,34 @@
 extern crate rocket;
-use bson::Document;
+// use bson::Document;
 use rocket::{launch, routes};
-use rocket_dyn_templates::{
-    handlebars::{self, handlebars_helper},
-    Template,
-};
+use rocket_dyn_templates::Template;
 pub mod models;
 mod services;
 
-use handlebars::{
-    Context, Handlebars, Helper, HelperDef, HelperResult, JsonRender, Output, RenderContext,
-    RenderError,
-};
-use std::io::Write;
+// use handlebars::{
+//     Context, Handlebars, Helper, HelperDef, HelperResult, JsonRender, Output, RenderContext,
+//     RenderError,
+// };
+// use std::io::Write;
 
-fn unique(
-    h: &Helper,
-    _: &Handlebars,
-    _: &Context,
-    rc: &mut RenderContext,
-    out: &mut dyn Output,
-) -> HelperResult {
-    let param = h.param(0).unwrap();
-    println!("{:?}", param);
-    out.write(param.value().render().as_ref())?;
-    Ok(())
-}
+// fn unique(
+//     h: &Helper,
+//     _: &Handlebars,
+//     _: &Context,
+//     rc: &mut RenderContext,
+//     out: &mut dyn Output,
+// ) -> HelperResult {
+//     let param = h.param(0).unwrap();
+//     println!("{:?}", param);
+//     out.write(param.value().render().as_ref())?;
+//     Ok(())
+// }
 
 #[launch]
 fn rocket() -> _ {
-    let mut handlebars = Handlebars::new();
+    // let mut handlebars = Handlebars::new();
 
-    handlebars.register_helper("unique", Box::new(unique));
+    // handlebars.register_helper("unique", Box::new(unique));
 
     rocket::build()
         .mount(

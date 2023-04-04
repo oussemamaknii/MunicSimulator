@@ -77,7 +77,7 @@
     select {
       background-color: rgb(53, 53, 53);
       border: none;
-      width: 100px;
+      width: 200px;
       height: 40px;
       font-family: inherit;
       font-size: inherit;
@@ -204,81 +204,78 @@
   </form>
 
   <form id="cord_form" method="post" action="/simulate">
-    {{!-- <form id="cord_form" enctype='multipart/form-data' method="post" action="/file"> --}}
-      <div class="formcontainer">
-        <div class="container">
+    <div class="formcontainer">
+      <div class="container">
 
-          <label><strong>Your URL :</strong></label>
-          <input name="url" id="url" type="text" placeholder="Enter your Notification URL">
-          <p>{{ msg }}</p>
+        <label><strong>Your URL :</strong></label>
+        <input name="url" id="url" type="text" placeholder="Enter your Notification URL">
+        <p>{{ msg }}</p>
 
-          <div id="http-div">
-            <span class="logged-in" id="newSpan">●</span>
-            <p id="http"></p>
+        <div id="http-div">
+          <span class="logged-in" id="newSpan">●</span>
+          <p id="http"></p>
+        </div>
+
+        <h1>Coordinates</h1>
+        <div class="alert alert-warning">
+          <div class="icon__wrapper">
+            <span class="mdi mdi-alert-outline"></span>
           </div>
+          <p>You are replaying the exact same trip picked by date and file !! if you want to simulate using real
+            Coordinates in real time and customized fields, please enter a valid
+            google maps api key !
+            <a href="https://developers.google.com/maps/documentation/javascript/get-api-key?hl=fr">How to cretae
+              one
+              !</a>
+          </p>
+        </div>
+        <label><strong>Google maps API KEY</strong></label>
+        <input name="key" id="key" type="password" placeholder="Enter your GM API KEY">
+        <label><strong>Source</strong></label>
+        <input name="lat" id="lat" type="text" placeholder="Enter Source Location">
+        <label><strong>Destination</strong></label>
+        <input name="lon" id="lon" type="text" placeholder="Enter Destination Location">
 
-          <h1>Coordinates</h1>
-          <div class="alert alert-warning">
-            <div class="icon__wrapper">
-              <span class="mdi mdi-alert-outline"></span>
-            </div>
-            <p>You are replaying the exact same trip picked by date and file !! if you want to simulate using real
-              Coordinates in real time and customized fields, please enter a valid
-              google maps api key !
-              <a href="https://developers.google.com/maps/documentation/javascript/get-api-key?hl=fr">How to cretae
-                one
-                !</a>
-            </p>
+        <div id="http-div" class="content">
+          <label><strong>Choose a track file </strong></label>
+          <div class="select">
+            <select name="presence_option" id="tf_select">
+              <option id="slct" value="">--Choose a file--</option>
+              {% for file, data in track_dates | group_by(attribute="_id.file") %}
+              {% if file %}
+              <option id="slct" value="{{file}}"> {{file}}</option>
+              {% endif %}
+              {% endfor %}
+            </select>
           </div>
-          <label><strong>Google maps API KEY</strong></label>
-          <input name="key" id="key" type="password" placeholder="Enter your GM API KEY">
-          <label><strong>Source</strong></label>
-          <input name="lat" id="lat" type="text" placeholder="Enter Source Location">
-          <label><strong>Destination</strong></label>
-          <input name="lon" id="lon" type="text" placeholder="Enter Destination Location">
-
-          <div id="http-div" class="content">
-            <label><strong>Choose a track file </strong></label>
-            <div class="select">
-              <select name="track_option" id="tf_select">
-                {{unique track_dates}}
-                <option id="slct" value="{{this._id.file}}"> {{this._id.file}} </option>
-
-              </select>
-            </div>
-            <label><strong>Choose a presence file </strong></label>
-            <div class="select">
-              <select name="presence_option" id="pf_select">
-                {{#each presence_dates}}
-                <option id="slct" value="{{this._id.file}}"> {{this._id.file}}</option>
-                {{/each}}
-              </select>
-            </div>
-          </div>
-
-          <div id="http-div" class="content">
-            <label><strong>Choose a track date </strong></label>
-            <div class="select">
-              <select name="track_option" id="t_select">
-                {{#each track_dates}}
-                <option id="slct" value="{{this._id.year}}-{{this._id.month}}-{{this._id.day}}">
-                  {{this._id.year}}-{{this._id.month}}-{{this._id.day}} </option>
-                {{/each}}
-              </select>
-            </div>
-            <label><strong>Choose a presence date </strong></label>
-            <div class="select">
-              <select name="presence_option" id="p_select">
-                {{#each presence_dates}}
-                <option id="slct" value="{{this._id.year}}-{{this._id.month}}-{{this._id.day}}">
-                  {{this._id.year}}-{{this._id.month}}-{{this._id.day}}</option>
-                {{/each}}
-              </select>
-            </div>
+          <label><strong>Choose a presence file </strong></label>
+          <div class="select">
+            <select name="presence_option" id="pf_select">
+              <option id="slct" value="">--Choose a file--</option>
+              {% for file, data in presence_dates | group_by(attribute="_id.file") %}
+              {% if file %}
+              <option id="slct" value="{{file}}"> {{file}}</option>
+              {% endif %}
+              {% endfor %}
+            </select>
           </div>
         </div>
-        <button type="submit" id="button"><strong>Simulate !!</strong></button>
-    </form>
+
+        <div id="http-div" class="content">
+          <label><strong>Choose a track date </strong></label>
+          <div class="select">
+            <select name="track_option" id="t_select">
+            </select>
+          </div>
+          <label><strong>Choose a presence date </strong></label>
+          <div class="select">
+            <select name="presence_option" id="p_select">
+            </select>
+          </div>
+        </div>
+      </div>
+      <button type="submit" id="button"><strong>Simulate !!</strong></button>
+  </form>
 </body>
 <script src="https://unpkg.com/validator@latest/validator.min.js"></script>
 <script type="text/javascript">
@@ -299,15 +296,10 @@
   upload_button.disabled = true;
   const evtSource = new EventSource("/events");
 
-  var x = document.getElementById("pf_select");
-
-  for (var i = 0; i < x.length - 1; i++) {
-    for (var j = i + 1; j < x.length; j++) {
-      if (x.options[i].value != x.options[i].value) {
-        arr.push(x.options[i].value);
-      }
-    };
-  };
+  var tf_select = document.getElementById("tf_select");
+  var pf_select = document.getElementById("pf_select");
+  var t_select = document.getElementById("t_select");
+  var p_select = document.getElementById("p_select");
 
   evtSource.onopen = function () {
     console.log("Connection to server opened.");
@@ -358,6 +350,40 @@
       upload_button.disabled = true;
     }
   });
+
+  const tdata = {{ track_dates| json_encode() | safe }};
+  const pdata = {{ presence_dates| json_encode() | safe }};
+
+  tf_select.addEventListener("change", (event) => {
+    removeOptions(t_select);
+    for (var i = 0; i < tdata.length; i++) {
+      if (tdata[i]._id.file == event.target.value) {
+        var new_option = document.createElement("option");
+        new_option.text = `${tdata[i]._id.year}-${tdata[i]._id.month}-${tdata[i]._id.day}`;
+        new_option.value = `${tdata[i]._id.year}-${tdata[i]._id.month}-${tdata[i]._id.day}`;
+        t_select.appendChild(new_option);
+      }
+    };
+  });
+
+  pf_select.addEventListener("change", (event) => {
+    removeOptions(t_select);
+    for (var i = 0; i < pdata.length; i++) {
+      if (pdata[i]._id.file == event.target.value) {
+        var new_option = document.createElement("option");
+        new_option.text = `${pdata[i]._id.year}-${pdata[i]._id.month}-${pdata[i]._id.day}`;
+        new_option.value = `${pdata[i]._id.year}-${pdata[i]._id.month}-${pdata[i]._id.day}`;
+        p_select.appendChild(new_option);
+      }
+    };
+  });
+
+  function removeOptions(selectElement) {
+    var i, L = selectElement.options.length - 1;
+    for (i = L; i >= 0; i--) {
+      selectElement.remove(i);
+    }
+  }
 
   url.addEventListener("input", (event) => {
     button1.disabled = !validator.isURL(event.target.value);
