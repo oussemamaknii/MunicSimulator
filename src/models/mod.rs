@@ -2,6 +2,7 @@
 
 use bson::Document;
 use is_empty::IsEmpty;
+use rocket::FromForm;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -36,6 +37,18 @@ pub struct Presence {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub time: Option<String>,
+}
+
+#[derive(FromForm, Default, Debug)]
+pub struct UserInput {
+    pub lon: String,
+    pub key: String,
+    pub lat: String,
+    pub url: String,
+    pub track_option: String,
+    pub presence_option: String,
+    pub track_file: String,
+    pub presence_file: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

@@ -2,7 +2,7 @@
 
 extern crate chrono;
 extern crate rocket;
-use crate::models::{self, Presence, Tracks};
+use crate::models::{self, Presence, Tracks, UserInput};
 use bson::doc;
 use mongodb::Collection;
 use rocket::response::stream::{Event, EventStream};
@@ -26,8 +26,6 @@ use std::env;
 use std::error::Error;
 use std::path::PathBuf;
 
-use rocket::form::Form;
-use rocket::FromForm;
 use rocket::{get, post};
 use rocket_dyn_templates::{context, Template};
 use tokio::time::{self, Duration};
@@ -46,7 +44,7 @@ pub fn get_value() -> usize {
 }
 
 #[post("/upload", data = "<data>")]
-pub async fn file_json(content_type: &ContentType, data: Data<'_>) -> () {
+pub async fn file_json(content_type: &ContentType, data: Data<'_>) -> Redirect {
     let options = MultipartFormDataOptions::with_multipart_form_data_fields(vec![
         MultipartFormDataField::file("track_json_file")
             .content_type_by_string(Some(mime::APPLICATION_JSON))
@@ -54,11 +52,6 @@ pub async fn file_json(content_type: &ContentType, data: Data<'_>) -> () {
         MultipartFormDataField::file("presence_json_file")
             .content_type_by_string(Some(mime::APPLICATION_JSON))
             .unwrap(),
-        // MultipartFormDataField::text("url"),
-        // MultipartFormDataField::text("lon"),
-        // MultipartFormDataField::text("lat"),
-        // MultipartFormDataField::text("track_option"),
-        // MultipartFormDataField::text("presence_option"),
     ]);
 
     let multipart_form_data = MultipartFormData::parse(content_type, data, options)
@@ -67,11 +60,6 @@ pub async fn file_json(content_type: &ContentType, data: Data<'_>) -> () {
 
     let track_json_file = multipart_form_data.files.get("track_json_file");
     let presence_json_file = multipart_form_data.files.get("presence_json_file");
-    // let url_text = multipart_form_data.texts.remove("url");
-    // let lon_text = multipart_form_data.texts.remove("lon");
-    // let lat_text = multipart_form_data.texts.remove("lat");
-    // let track_option = multipart_form_data.texts.remove("track_option");
-    // let presence_option = multipart_form_data.texts.remove("presence_option");
 
     if let Some(tfile_fields) = track_json_file {
         let file_field = &tfile_fields[0];
@@ -87,7 +75,7 @@ pub async fn file_json(content_type: &ContentType, data: Data<'_>) -> () {
         path.push("C:\\Users\\makni_o\\\\Documents\\MunicSimulator\\uploads\\");
         match _file_name {
             Some(name) => path.push(name),
-            None => return (),
+            None => (),
         }
 
         match fs::rename(_path, path) {
@@ -118,7 +106,7 @@ pub async fn file_json(content_type: &ContentType, data: Data<'_>) -> () {
         path.push("C:\\Users\\makni_o\\\\Documents\\MunicSimulator\\uploads\\");
         match _file_name {
             Some(name) => path.push(name),
-            None => return (),
+            None => (),
         }
 
         match fs::rename(_path, path) {
@@ -134,76 +122,167 @@ pub async fn file_json(content_type: &ContentType, data: Data<'_>) -> () {
             Err(_err) => panic!("store panic !"),
         };
     }
+    Redirect::to(uri!(index("Files stored Successfully!")))
 }
 
 #[post("/simulate", data = "<user_input>")]
-pub fn simulate(user_input: Form<UserInput>) -> Redirect {
-    let mut new_user_input = UserInput {
-        url: user_input.url.to_string(),
-        lon: user_input.lon.to_string(),
-        lat: user_input.lat.to_string(),
-        track_option: user_input.track_option.to_string(),
-        presence_option: user_input.presence_option.to_string(),
-    };
+pub async fn simulate(content_type: &ContentType, user_input: Data<'_>) -> Redirect {
+    let options = MultipartFormDataOptions::with_multipart_form_data_fields(vec![
+        MultipartFormDataField::text("url"),
+        MultipartFormDataField::text("lon"),
+        MultipartFormDataField::text("lat"),
+        MultipartFormDataField::text("key"),
+        MultipartFormDataField::text("track_option"),
+        MultipartFormDataField::text("presence_option"),
+        MultipartFormDataField::text("track_file"),
+        MultipartFormDataField::text("presence_file"),
+    ]);
 
-    if new_user_input.track_option.len() != 10 {
-        if new_user_input.track_option.match_indices("-").nth(1) == Some((6, "-")) {
-            new_user_input.track_option.insert(5, '0');
+    let mut multipart_form_data = MultipartFormData::parse(content_type, user_input, options)
+        .await
+        .unwrap();
+
+    let url_text = multipart_form_data.texts.remove("url");
+    let mut turl_text: String = "".to_string();
+    let lon_text = multipart_form_data.texts.remove("lon");
+    let mut tlon_text: String = "".to_string();
+    let lat_text = multipart_form_data.texts.remove("lat");
+    let mut tlat_text: String = "".to_string();
+    let track_option = multipart_form_data.texts.remove("track_option");
+    let mut ttrack_option: String = "".to_string();
+    let presence_option = multipart_form_data.texts.remove("presence_option");
+    let mut tpresence_option: String = "".to_string();
+    let track_file = multipart_form_data.texts.remove("track_file");
+    let mut ttrack_file: String = "".to_string();
+    let presence_file = multipart_form_data.texts.remove("presence_file");
+    let mut tpresence_file: String = "".to_string();
+    let key = multipart_form_data.texts.remove("key");
+    let mut tkey: String = "".to_string();
+
+    if let Some(mut url_text) = url_text {
+        let text_field = url_text.remove(0);
+
+        let _content_type = text_field.content_type;
+        let _file_name = text_field.file_name;
+        let _text = text_field.text;
+
+        turl_text = String::from(_text);
+    }
+    if let Some(mut lon_text) = lon_text {
+        let text_field = lon_text.remove(0);
+
+        let _content_type = text_field.content_type;
+        let _file_name = text_field.file_name;
+        let _text = text_field.text;
+
+        tlon_text = String::from(_text);
+    }
+    if let Some(mut lat_text) = lat_text {
+        let text_field = lat_text.remove(0);
+
+        let _content_type = text_field.content_type;
+        let _file_name = text_field.file_name;
+        let _text = text_field.text;
+
+        tlat_text = String::from(_text);
+    }
+    if let Some(mut track_option) = track_option {
+        let text_field = track_option.remove(0);
+
+        let _content_type = text_field.content_type;
+        let _file_name = text_field.file_name;
+        let _text = text_field.text;
+
+        ttrack_option = String::from(_text);
+    }
+    if let Some(mut presence_option) = presence_option {
+        let text_field = presence_option.remove(0);
+
+        let _content_type = text_field.content_type;
+        let _file_name = text_field.file_name;
+        let _text = text_field.text;
+
+        tpresence_option = String::from(_text);
+    }
+    if let Some(mut track_file) = track_file {
+        let text_field = track_file.remove(0);
+
+        let _content_type = text_field.content_type;
+        let _file_name = text_field.file_name;
+        let _text = text_field.text;
+
+        ttrack_file = String::from(_text);
+    }
+    if let Some(mut presence_file) = presence_file {
+        let text_field = presence_file.remove(0);
+
+        let _content_type = text_field.content_type;
+        let _file_name = text_field.file_name;
+        let _text = text_field.text;
+
+        tpresence_file = String::from(_text);
+    }
+    if let Some(mut key) = key {
+        let text_field = key.remove(0);
+
+        let _content_type = text_field.content_type;
+        let _file_name = text_field.file_name;
+        let _text = text_field.text;
+
+        tkey = String::from(_text);
+    }
+
+    if ttrack_option.len() != 10 {
+        if ttrack_option.match_indices("-").nth(1) == Some((6, "-")) {
+            ttrack_option.insert(5, '0');
         }
-        if new_user_input.track_option.match_indices("-").nth(1) == Some((7, "-"))
-            && new_user_input.track_option.len() != 10
-        {
-            new_user_input.track_option.insert(8, '0');
+        if ttrack_option.match_indices("-").nth(1) == Some((7, "-")) && ttrack_option.len() != 10 {
+            ttrack_option.insert(8, '0');
         }
     }
 
-    if new_user_input.presence_option.len() != 10 {
-        if new_user_input.presence_option.match_indices("-").nth(1) == Some((6, "-")) {
-            new_user_input.presence_option.insert(5, '0');
+    if tpresence_option.len() != 10 {
+        if tpresence_option.match_indices("-").nth(1) == Some((6, "-")) {
+            tpresence_option.insert(5, '0');
         }
-        if new_user_input.presence_option.match_indices("-").nth(1) == Some((7, "-"))
-            && new_user_input.presence_option.len() != 10
+        if tpresence_option.match_indices("-").nth(1) == Some((7, "-"))
+            && tpresence_option.len() != 10
         {
-            new_user_input.presence_option.insert(8, '0');
+            tpresence_option.insert(8, '0');
         }
     }
 
-    if ping_server(new_user_input.url.clone()) {
+    if ping_server(turl_text.clone()) {
+        set_value(1);
         tokio::spawn(async move {
-            use futures::future::join_all;
-            let mut handles = vec![];
+            // use futures::future::join_all;
+            // let mut handles = vec![];
 
             let worker = tokio::spawn(async move {
                 use google_maps::prelude::*;
+                if tkey != "" {
+                    let google_maps_client = GoogleMapsClient::new(&tkey);
+                    let directions = google_maps_client
+                        .directions(
+                            Location::Address(String::from(tlat_text)),
+                            Location::Address(String::from(tlon_text)),
+                            // Location::LatLng(LatLng::try_from_f64(45.403_509, -75.618_904).unwrap()),
+                        )
+                        .with_travel_mode(TravelMode::Driving)
+                        .execute()
+                        .await;
 
-                let google_maps_client =
-                    GoogleMapsClient::new("AIzaSyAo1agGjrUSZhLwPydiX-_dJ-CEQkxoRmU");
-                let directions = google_maps_client
-                    .directions(
-                        Location::Address(String::from(new_user_input.lat)),
-                        Location::Address(String::from(new_user_input.lon)),
-                        // Location::LatLng(LatLng::try_from_f64(45.403_509, -75.618_904).unwrap()),
-                    )
-                    .with_travel_mode(TravelMode::Driving)
-                    .execute()
-                    .await;
-
-                set_value(1);
-                send_tracks(
-                    directions,
-                    &new_user_input.url.clone(),
-                    &new_user_input.track_option,
-                )
-                .await;
+                    send_tracks(directions, &turl_text.clone(), &ttrack_option).await;
+                }
                 println!("Work Done !")
             });
 
-            handles.push(worker);
-            join_all(handles).await;
+            // handles.push(worker);
+            // join_all(handles).await;
             println!("Shuting down the Handler thread!!")
         });
 
-        return Redirect::to(uri!(index("Sending !")));
+        return Redirect::to(uri!(index("Simulating !")));
     }
     Redirect::to(uri!(index("Didn't receive a Pong !")))
 }
@@ -301,8 +380,6 @@ async fn send_tracks(
 
             use chrono::Duration;
 
-            index = index + 1;
-
             if tracks_array.len() == 10 {
                 break 'outer;
             }
@@ -345,10 +422,15 @@ async fn send_tracks(
             };
             let res = builder.send().await;
 
+            index = index + 1;
+
             match res {
                 Ok(_a) => match get_value() {
                     1 => continue,
-                    0 => tracks_array = vec![],
+                    0 => {
+                        tracks_array = vec![];
+                        set_value(1);
+                    }
                     _ => continue,
                 },
                 Err(_err) => match get_value() {
@@ -524,54 +606,49 @@ pub async fn test() -> () {
             use chrono::Duration;
             use chrono::Local;
 
-            index = index + 1;
-
             if tracks_array.len() == 10 {
                 break 'outer;
             }
 
             let builder = {
                 if get_value() == 1 {
-                    client
-                        .post("http://localhost:5000/simulate")
-                        .json(&vec![Req {
-                            meta: Eveent {
-                                event: "track".to_string(),
-                                account: "municio".to_string(),
-                            },
-                            payload: Tracks {
-                                id: tracks[index].get_i64("id").unwrap() as i64,
-                                id_str: Some(tracks[index].get_str("id_str").unwrap().to_string()),
-                                location: Some([coord.x, coord.y]),
-                                loc: Some([coord.x, coord.y]),
-                                asset: Some(tracks[index].get_str("asset").unwrap().to_string()),
-                                recorded_at: Some(
-                                    (Local::now() - Duration::minutes(2))
-                                        .format("%Y-%m-%dT%H:%M:%SZ")
-                                        .to_string(),
-                                ),
-                                recorded_at_ms: Some(
-                                    (Local::now() - Duration::minutes(2))
-                                        .format("%Y-%m-%dT%H:%M:%S%.3fZ")
-                                        .to_string(),
-                                ),
-                                received_at: Some(
-                                    (Local::now()).format("%Y-%m-%dT%H:%M:%SZ").to_string(),
-                                ),
-                                connection_id: tracks[index].get_i64("connection_id").unwrap()
-                                    as i64,
-                                index: tracks[index].get_i64("index").unwrap() as i64,
-                                fields: Fields::from(tracks[index].get_document("fields").unwrap()),
-                                url: Some(tracks[index].get_str("url").unwrap().to_string()),
-                            },
-                        }])
+                    client.post("http://localhost:5000/").json(&vec![Req {
+                        meta: Eveent {
+                            event: "track".to_string(),
+                            account: "municio".to_string(),
+                        },
+                        payload: Tracks {
+                            id: tracks[index].get_i64("id").unwrap() as i64,
+                            id_str: Some(tracks[index].get_str("id_str").unwrap().to_string()),
+                            location: Some([coord.x, coord.y]),
+                            loc: Some([coord.x, coord.y]),
+                            asset: Some(tracks[index].get_str("asset").unwrap().to_string()),
+                            recorded_at: Some(
+                                (Local::now() - Duration::minutes(2))
+                                    .format("%Y-%m-%dT%H:%M:%SZ")
+                                    .to_string(),
+                            ),
+                            recorded_at_ms: Some(
+                                (Local::now() - Duration::minutes(2))
+                                    .format("%Y-%m-%dT%H:%M:%S%.3fZ")
+                                    .to_string(),
+                            ),
+                            received_at: Some(
+                                (Local::now()).format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+                            ),
+                            connection_id: tracks[index].get_i64("connection_id").unwrap() as i64,
+                            index: tracks[index].get_i64("index").unwrap() as i64,
+                            fields: Fields::from(tracks[index].get_document("fields").unwrap()),
+                            url: Some(tracks[index].get_str("url").unwrap().to_string()),
+                        },
+                    }])
                 } else {
-                    client
-                        .post("http://localhost:5000/simulate")
-                        .json(&tracks_array)
+                    client.post("http://localhost:5000/").json(&tracks_array)
                 }
             };
             let res = builder.send().await;
+
+            index = index + 1;
 
             match res {
                 Ok(_a) => match get_value() {
@@ -678,14 +755,14 @@ pub async fn index(msg: String) -> Template {
         doc! {"$addFields": { "date": { "$toDate": "$recorded_at" } }  },
         doc! {"$sort": { "date" : 1 }},
         doc! {"$group":  {
-            "_id": { "year": { "$year": "$date" }, "month": { "$month": "$date" }, "day": { "$dayOfMonth": "$date" } }
+            "_id": { "file": "$file","year": { "$year": "$date" },  "month": { "$month": "$date" }, "day": { "$dayOfMonth": "$date" } }
         }},
     ];
     let pres_pipeline = vec![
         doc! {"$addFields": { "date": { "$toDate": "$time" } }  },
         doc! {"$sort": { "date" : 1 }},
         doc! {"$group":  {
-            "_id": { "year": { "$year": "$date" }, "month": { "$month": "$date" }, "day": { "$dayOfMonth": "$date" } }
+            "_id": { "file": "$file","year": { "$year": "$date" }, "month": { "$month": "$date" }, "day": { "$dayOfMonth": "$date" } }
         }},
     ];
 
@@ -740,7 +817,7 @@ pub async fn indexx() -> Template {
         doc! {"$addFields": { "date": { "$toDate": "$time" } }  },
         doc! {"$sort": { "date" : 1 }},
         doc! {"$group":  {
-            "_id": { "year": { "$year": "$date" }, "month": { "$month": "$date" }, "day": { "$dayOfMonth": "$date" } }
+            "_id": { "file": "$file","year": { "$year": "$date" }, "month": { "$month": "$date" }, "day": { "$dayOfMonth": "$date" } }
         }},
     ];
 
@@ -925,13 +1002,4 @@ fn ping_server(url: String) -> bool {
         Ok(_) => true,
         Err(_err) => false,
     }
-}
-
-#[derive(FromForm, Debug)]
-pub struct UserInput {
-    lon: String,
-    lat: String,
-    url: String,
-    track_option: String,
-    presence_option: String,
 }

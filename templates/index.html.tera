@@ -203,7 +203,7 @@
       </div>
   </form>
 
-  <form id="cord_form" method="post" action="/simulate">
+  <form id="cord_form" enctype='multipart/form-data' method="post" action="/simulate">
     <div class="formcontainer">
       <div class="container">
 
@@ -239,7 +239,7 @@
         <div id="http-div" class="content">
           <label><strong>Choose a track file </strong></label>
           <div class="select">
-            <select name="presence_option" id="tf_select">
+            <select name="track_file" id="tf_select">
               <option id="slct" value="">--Choose a file--</option>
               {% for file, data in track_dates | group_by(attribute="_id.file") %}
               {% if file %}
@@ -250,7 +250,7 @@
           </div>
           <label><strong>Choose a presence file </strong></label>
           <div class="select">
-            <select name="presence_option" id="pf_select">
+            <select name="presence_file" id="pf_select">
               <option id="slct" value="">--Choose a file--</option>
               {% for file, data in presence_dates | group_by(attribute="_id.file") %}
               {% if file %}
@@ -364,10 +364,14 @@
         t_select.appendChild(new_option);
       }
     };
+    if (tf_select.value == "" && pf_select.value != null && validator.isURL(url.value)) {
+      button1.disabled = true;
+    } else
+      button1.disabled = false;
   });
 
   pf_select.addEventListener("change", (event) => {
-    removeOptions(t_select);
+    removeOptions(p_select);
     for (var i = 0; i < pdata.length; i++) {
       if (pdata[i]._id.file == event.target.value) {
         var new_option = document.createElement("option");
@@ -376,6 +380,10 @@
         p_select.appendChild(new_option);
       }
     };
+    if (tf_select.value == "" && pf_select.value != null && validator.isURL(url.value)) {
+      button1.disabled = true;
+    } else
+      button1.disabled = false;
   });
 
   function removeOptions(selectElement) {
@@ -386,7 +394,7 @@
   }
 
   url.addEventListener("input", (event) => {
-    button1.disabled = !validator.isURL(event.target.value);
+    button1.disabled = ((tf_select.value == "") && (pf_select.value == "") && (validator.isURL(event.target.value)));
   });
 </script>
 
