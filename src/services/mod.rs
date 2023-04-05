@@ -4,7 +4,7 @@ extern crate chrono;
 extern crate rocket;
 use crate::models::{self, Presence, Tracks, UserInput};
 use bson::{doc, Bson, Document};
-use chrono::Local;
+use chrono::{DateTime, Local};
 use mongodb::Collection;
 use rocket::response::stream::{Event, EventStream};
 use rocket::response::Redirect;
@@ -615,16 +615,36 @@ async fn replay(
 pub async fn replay_tracks(tracks: Vec<Document>, track_client: reqwest::Client, url: &String) {
     let mut tracks_array: Vec<Req<Tracks>> = vec![];
 
-    let mut ten_minutes = time::interval(Duration::from_secs_f64(5.1).try_into().unwrap());
-
     let a = vec![Bson::Double(0.0), Bson::Double(0.0)];
     static DEF: Option<[f64; 2]> = None;
 
+    let mut old_track: Document = Document::new();
+
+    let mut first = true;
+
     'outer: for track in tracks {
+        if first == true {
+            time::sleep(Duration::from_secs(1)).await;
+            first = false;
+        } else {
+            let t1 =
+                DateTime::parse_from_rfc3339(&track.get_str("recorded_at").unwrap().to_string())
+                    .unwrap();
+            let t2 = DateTime::parse_from_rfc3339(
+                &old_track.get_str("recorded_at").unwrap().to_string(),
+            )
+            .unwrap();
+
+            let elapsed_seconds = t1.timestamp() - t2.timestamp();
+
+            time::sleep(Duration::from_secs(elapsed_seconds as u64)).await;
+        }
+
+        old_track = track.clone();
+
         let location = track.get_array("location").unwrap_or_else(|_| &a);
         let loc = track.get_array("loc").unwrap_or_else(|_| &a);
 
-        ten_minutes.tick().await;
         println!("sending tracks...");
 
         if tracks_array.len() == 10 {
@@ -769,10 +789,27 @@ pub async fn replay_presence(
 ) {
     let mut presences_array: Vec<Req<Presence>> = vec![];
 
-    let mut ten_minutes = time::interval(Duration::from_secs_f64(5.1).try_into().unwrap());
+    let mut old_pres: Document = Document::new();
+
+    let mut first = true;
 
     'outer: for presence in presences {
-        ten_minutes.tick().await;
+        if first == true {
+            time::sleep(Duration::from_secs(1)).await;
+            first = false;
+        } else {
+            let t1 = DateTime::parse_from_rfc3339(&presence.get_str("time").unwrap().to_string())
+                .unwrap();
+            let t2 = DateTime::parse_from_rfc3339(&old_pres.get_str("time").unwrap().to_string())
+                .unwrap();
+
+            let elapsed_seconds = t1.timestamp() - t2.timestamp();
+
+            time::sleep(Duration::from_secs(elapsed_seconds as u64)).await;
+        }
+
+        old_pres = presence.clone();
+
         println!("sending presence...");
 
         if presences_array.len() == 10 {
