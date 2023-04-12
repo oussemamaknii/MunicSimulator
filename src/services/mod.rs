@@ -640,14 +640,6 @@ pub async fn replay_tracks(
     let mut first = true;
 
     'outer: for track in tracks {
-        match receiver.try_recv() {
-            Ok(_) | Err(TryRecvError::Disconnected) => {
-                println!("Terminating.");
-                break 'outer;
-            }
-            Err(TryRecvError::Empty) => {}
-        }
-
         if first == true {
             time::sleep(Duration::from_secs(1)).await;
             first = false;
@@ -662,7 +654,16 @@ pub async fn replay_tracks(
 
             let elapsed_seconds = t1.timestamp() - t2.timestamp();
 
-            time::sleep(Duration::from_secs(elapsed_seconds as u64)).await;
+            for _ in 0..elapsed_seconds {
+                time::sleep(Duration::from_secs(1)).await;
+                match receiver.try_recv() {
+                    Ok(_) | Err(TryRecvError::Disconnected) => {
+                        println!("Terminating.");
+                        break 'outer;
+                    }
+                    Err(TryRecvError::Empty) => {}
+                }
+            }
         }
 
         old_track = track.clone();
@@ -838,7 +839,16 @@ pub async fn replay_presence(
 
             let elapsed_seconds = t1.timestamp() - t2.timestamp();
 
-            time::sleep(Duration::from_secs(elapsed_seconds as u64)).await;
+            for _ in 0..elapsed_seconds {
+                time::sleep(Duration::from_secs(1)).await;
+                match receiver.try_recv() {
+                    Ok(_) | Err(TryRecvError::Disconnected) => {
+                        println!("Terminating.");
+                        break 'outer;
+                    }
+                    Err(TryRecvError::Empty) => {}
+                }
+            }
         }
 
         old_pres = presence.clone();
