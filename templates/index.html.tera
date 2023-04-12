@@ -8,6 +8,41 @@
   <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.4.1/css/all.css"
     integrity="sha384-5sAR7xN1Nv6T6+dT2mhtzEpVJvfS3NScPQTrOxhwjIuvcA67KV2R5Jz6kr4abQsz" crossorigin="anonymous">
   <style>
+    .styled-table {
+      border-collapse: collapse;
+      margin: 25px 0;
+      
+  margin-left: auto;
+  margin-right: auto;
+      font-size: 0.9em;
+      font-family: sans-serif;
+      min-width: 400px;
+      box-shadow: 0 0 20px rgba(0, 0, 0, 0.15);
+  }
+  .styled-table thead tr {
+    background-color: #4286f4;
+    color: #ffffff;
+    text-align: left;
+}
+.styled-table th,
+.styled-table td {
+    padding: 12px 15px;
+}
+.styled-table tbody tr {
+  border-bottom: 1px solid #dddddd;
+}
+.styled-table tbody tr.active-row {
+  font-weight: bold;
+  color: #4286f4;
+}
+
+.styled-table tbody tr:nth-of-type(even) {
+  background-color: #f3f3f3;
+}
+
+.styled-table tbody tr:last-of-type {
+  border-bottom: 2px solid #4286f4;
+}
     .label-file {
       cursor: pointer;
       color: #00b1ca;
@@ -34,6 +69,7 @@
       margin-left: auto;
       margin-right: auto;
       margin-bottom: 10px;
+      margin-top: 10px;
     }
 
     .alert-warning {
@@ -115,7 +151,7 @@
       font-size: 15px;
     }
 
-    form {
+    #cord_form {
       border: 5px solid #f1f1f1;
     }
 
@@ -145,7 +181,7 @@
       color: #4286f4;
     }
 
-    button {
+    .button {
       background-color: #4286f4;
       color: white;
       padding: 14px 0;
@@ -153,6 +189,14 @@
       border: none;
       cursor: grab;
       width: 48%;
+    }
+
+    #btn {
+      background-color: #4286f4;
+      color: white;
+      padding: 10px 10px;
+      border: none;
+      cursor: grab;
     }
 
     h1 {
@@ -163,7 +207,7 @@
     button:hover {
       opacity: 0.8;
     }
-
+    
     .formcontainer {
       text-align: center;
       margin: 24px 60px 16px;
@@ -185,6 +229,19 @@
 </head>
 
 <body>
+
+  <div style="margin-left:auto;margin-right:auto;">
+  <table class="styled-table" id="thread-table">
+    <thead>
+        <tr>
+            <th>Thread URL</th>
+            <th>Abort</th>
+        </tr>
+    </thead>
+    <tbody >
+    </tbody>
+  </table>
+
   <form enctype='multipart/form-data' method="post" action="/upload">
     <div class="formcontainer">
       <div class="container">
@@ -198,7 +255,7 @@
           <input type="file" id="presence_json_file" class="input-file" name="presence_json_file"
             accept="application/json">
         </div>
-        <button type="submit" id="upload_button" style="margin-left: 26%;"><strong>Upload !!</strong></button>
+        <button type="submit" class="button" id="upload_button" style="margin-left: 26%;"><strong>Upload !!</strong></button>
 
       </div>
   </form>
@@ -231,6 +288,14 @@
         </div>
         <label><strong>Google maps API KEY</strong></label>
         <input name="key" id="key" type="password" placeholder="Enter your GM API KEY">
+        <div class="alert alert-warning" id="alert-container">
+          <div class="icon__wrapper">
+            <span class="mdi mdi-alert-outline"></span>
+          </div>
+          <p>By doing a real-time simulation you may run out of fields data, because it
+            depends on the refrence track files we are using ... (Work in progress) !!
+          </p>
+        </div>
         <label><strong>Source</strong></label>
         <input name="lat" id="lat" type="text" placeholder="Enter Source Location">
         <label><strong>Destination</strong></label>
@@ -274,10 +339,12 @@
           </div>
         </div>
       </div>
-      <button type="submit" id="button"><strong>Simulate !!</strong></button>
+      <button type="submit" class="button" id="button"><strong>Simulate !!</strong></button>
   </form>
+</div>
 </body>
 <script src="https://unpkg.com/validator@latest/validator.min.js"></script>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.3/jquery.min.js"></script>
 <script type="text/javascript">
   const url = document.getElementById("url");
   const presence_json_file = document.getElementById("presence_json_file");
@@ -306,11 +373,58 @@
   };
 
   evtSource.onmessage = function (e) {
-    if (e.data == 1) {
+    const obj = JSON.parse(e.data);
+    var tbodyRef = document.getElementById('thread-table').getElementsByTagName('tbody')[0];
+
+    tbodyRef.innerHTML = '';
+
+    for (var i = 0; i < obj.threads.length; i++) {
+      var newRow = tbodyRef.insertRow();
+      newRow.setAttribute("id","row"+i);
+
+      var newCell = newRow.insertCell();
+      newCell.setAttribute("class","column-data");
+
+      var newText = document.createTextNode(obj.threads[i]);
+      
+      newCell.appendChild(newText);
+      
+      var newCell1 = newRow.insertCell();
+
+      var btn = document.createElement("button");
+      btn.setAttribute("class","inp");
+      btn.setAttribute("id","btn");
+      btn.textContent = "Abort Thread !";
+      newCell1.appendChild(btn);
+    }
+
+    let allButtons = document.getElementsByClassName('inp');
+    for (let button of allButtons) {
+       button.addEventListener('click', () => {
+          var clickedElement = event.target
+          var clickedRow = clickedElement.parentNode.parentNode.id;
+          var rowData = document.getElementById(clickedRow).querySelectorAll('.column-data');
+          let url = rowData[0].innerHTML;
+          e.preventDefault();
+          $.ajax({
+            type: "POST",
+            url: "/abort",
+            data: url,
+            success: function(result) {
+              console.log("success")
+            },
+            error: function(result) {
+              console.log("error")
+            }
+          });
+       });
+    }
+
+    if (e.data.http == 1) {
       newSpan.setAttribute('class', 'logged-in');
       http.textContent = "HTTP Request Status : 200";
     }
-    else if (e.data == 0) {
+    else if (e.data.http == 0) {
       newSpan.setAttribute('class', 'logged-out');
       http.textContent = "HTTP Request Status : 503";
     }

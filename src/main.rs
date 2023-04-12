@@ -14,10 +14,9 @@ fn rocket() -> _ {
                 services::index,
                 services::indexx,
                 services::file_json,
-                // services::store_p,
-                // services::store_t,
                 services::test,
-                services::stream
+                services::stream,
+                services::abort
             ],
         )
         .attach(Template::fairing())

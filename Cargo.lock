@@ -149,6 +149,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "atomic-array"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cd13578f310af33a2a806d2f83faad80ed4d38085b70839660c847f0a09beebf"
+dependencies = [
+ "atomic-ref2",
+]
+
+[[package]]
+name = "atomic-ref2"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9d1ffd1750a574914076b9fb8811acf312d6b416f1f36f99cf11759284959323"
+
+[[package]]
 name = "atty"
 version = "0.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1850,6 +1865,7 @@ dependencies = [
 name = "munic_simulator"
 version = "0.1.0"
 dependencies = [
+ "atomic-array",
  "bson",
  "chrono",
  "dns-lookup",
@@ -1858,6 +1874,7 @@ dependencies = [
  "google_maps",
  "is_empty",
  "mongodb",
+ "once_cell",
  "polyline",
  "reqwest",
  "rocket 0.5.0-rc.2",

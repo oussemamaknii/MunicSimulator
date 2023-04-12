@@ -2,14 +2,17 @@
 
 extern crate chrono;
 extern crate rocket;
-use crate::models::{self, Presence, Tracks, UserInput};
+use crate::models::{self, Presence, Tracks};
+use atomic_array::AtomicOptionRefArray;
 use bson::{doc, Bson, Document};
-use chrono::{DateTime, Local};
+use chrono::DateTime;
 use mongodb::Collection;
+use once_cell::sync::Lazy;
 use rocket::response::stream::{Event, EventStream};
 use rocket::response::Redirect;
 use rocket::uri;
 use std::fs;
+use tokio::task::JoinHandle;
 
 use rocket::http::ContentType;
 use rocket::Data;
@@ -29,12 +32,18 @@ use std::path::PathBuf;
 
 use rocket::{get, post};
 use rocket_dyn_templates::{context, Template};
+use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
 use tokio::time::{self, Duration};
 use url::Url;
 
 use core::sync::atomic::{AtomicUsize, Ordering};
 
+static THREADS: Lazy<AtomicOptionRefArray<(String, JoinHandle<()>, Sender<()>, Sender<()>)>> =
+    Lazy::new(|| AtomicOptionRefArray::new(10));
+
 static STATE: AtomicUsize = AtomicUsize::new(3);
+
+static INDEX: AtomicUsize = AtomicUsize::new(0);
 
 pub fn set_value(val: usize) {
     STATE.store(val, Ordering::Relaxed)
@@ -145,6 +154,7 @@ pub async fn simulate(content_type: &ContentType, user_input: Data<'_>) -> Redir
 
     let url_text = multipart_form_data.texts.remove("url");
     let mut turl_text: String = "".to_string();
+    let mut turl_thread: String = "".to_string();
     let lon_text = multipart_form_data.texts.remove("lon");
     let mut tlon_text: String = "".to_string();
     let lat_text = multipart_form_data.texts.remove("lat");
@@ -167,6 +177,7 @@ pub async fn simulate(content_type: &ContentType, user_input: Data<'_>) -> Redir
         let _file_name = text_field.file_name;
         let _text = text_field.text;
 
+        turl_thread = _text.clone();
         turl_text = String::from(_text);
     }
     if let Some(mut lon_text) = lon_text {
@@ -256,8 +267,11 @@ pub async fn simulate(content_type: &ContentType, user_input: Data<'_>) -> Redir
     if ping_server(turl_text.clone()) {
         set_value(1);
         tokio::spawn(async move {
-            use futures::future::join_all;
-            let mut handles = vec![];
+            // use futures::future::join_all;
+            // let mut handles = vec![];
+
+            let (tsender, treceiver) = channel();
+            let (psender, preceiver) = channel();
 
             let worker = tokio::spawn(async move {
                 use google_maps::prelude::*;
@@ -276,11 +290,13 @@ pub async fn simulate(content_type: &ContentType, user_input: Data<'_>) -> Redir
                     send_tracks(directions, &turl_text, &ttrack_option).await;
                 } else {
                     replay(
-                        &turl_text,
+                        &turl_text.clone(),
                         &ttrack_option,
                         &tpresence_option,
                         &ttrack_file,
                         &tpresence_file,
+                        treceiver,
+                        preceiver,
                     )
                     .await;
                 }
@@ -288,9 +304,14 @@ pub async fn simulate(content_type: &ContentType, user_input: Data<'_>) -> Redir
                 println!("Work Done !")
             });
 
-            handles.push(worker);
-            join_all(handles).await;
-            println!("Shuting down the Handler thread!!")
+            THREADS.store(
+                INDEX.load(Ordering::Relaxed),
+                (turl_thread, worker, tsender, psender),
+            );
+            INDEX.store(INDEX.load(Ordering::Relaxed) + 1, Ordering::Relaxed);
+            // handles.push(worker);
+            // join_all(handles).await;
+            println!("Shuting down the Request Handler thread!!")
         });
 
         return Redirect::to(uri!(index("Simulating !")));
@@ -324,16 +345,6 @@ async fn send_tracks(
 
     let tracks_collection = client.database("munic").collection::<Tracks>("tracks");
 
-    // counting how many records
-    let mut number_of_records_needed = 0;
-
-    for step in &json_data.steps {
-        let result = polyline::decode_polyline(&step.polyline.points, 5).unwrap();
-
-        for _ in &result {
-            number_of_records_needed = number_of_records_needed + 1;
-        }
-    }
     let pipeline = vec![
         doc! {"$match": { "fields": { "$gt": {} } }  },
         doc! {"$addFields": { "date": { "$toDate": "$recorded_at" } }  },
@@ -341,7 +352,6 @@ async fn send_tracks(
         doc! {
             "$match": { "subs" :  {"$eq": option} }
         },
-        doc! { "$sample": { "size": number_of_records_needed } },
         doc! {"$sort": { "date" : 1 }},
     ];
 
@@ -369,7 +379,7 @@ async fn send_tracks(
         use substring::Substring;
         use tokio::time::Duration;
 
-        let result = polyline::decode_polyline(&step.polyline.points, 6).unwrap();
+        let result = polyline::decode_polyline(&step.polyline.points, 5).unwrap();
 
         let mut ten_minutes = time::interval(
             Duration::from_secs_f64(
@@ -522,6 +532,8 @@ async fn replay(
     presence_option: &String,
     track_file: &String,
     presence_file: &String,
+    treceiver: Receiver<()>,
+    preceiver: Receiver<()>,
 ) -> () {
     use dotenvy::dotenv;
     dotenv().ok();
@@ -596,11 +608,11 @@ async fn replay(
     let url_clonee = url.clone();
 
     let presence_worker = tokio::spawn(async move {
-        replay_presence(presences, presence_client, &url_clonee).await;
+        replay_presence(presences, presence_client, &url_clonee, preceiver).await;
     });
 
     let track_worker = tokio::spawn(async move {
-        replay_tracks(tracks, track_client, &url_clone).await;
+        replay_tracks(tracks, track_client, &url_clone, treceiver).await;
     });
 
     handles.push(presence_worker);
@@ -612,7 +624,12 @@ async fn replay(
     println!("Shuting down replay the Handler thread!!")
 }
 
-pub async fn replay_tracks(tracks: Vec<Document>, track_client: reqwest::Client, url: &String) {
+pub async fn replay_tracks(
+    tracks: Vec<Document>,
+    track_client: reqwest::Client,
+    url: &String,
+    receiver: Receiver<()>,
+) {
     let mut tracks_array: Vec<Req<Tracks>> = vec![];
 
     let a = vec![Bson::Double(0.0), Bson::Double(0.0)];
@@ -623,6 +640,14 @@ pub async fn replay_tracks(tracks: Vec<Document>, track_client: reqwest::Client,
     let mut first = true;
 
     'outer: for track in tracks {
+        match receiver.try_recv() {
+            Ok(_) | Err(TryRecvError::Disconnected) => {
+                println!("Terminating.");
+                break 'outer;
+            }
+            Err(TryRecvError::Empty) => {}
+        }
+
         if first == true {
             time::sleep(Duration::from_secs(1)).await;
             first = false;
@@ -786,6 +811,7 @@ pub async fn replay_presence(
     presences: Vec<Document>,
     presence_client: reqwest::Client,
     url: &String,
+    receiver: Receiver<()>,
 ) {
     let mut presences_array: Vec<Req<Presence>> = vec![];
 
@@ -794,6 +820,13 @@ pub async fn replay_presence(
     let mut first = true;
 
     'outer: for presence in presences {
+        match receiver.try_recv() {
+            Ok(_) | Err(TryRecvError::Disconnected) => {
+                println!("Terminating.");
+                break 'outer;
+            }
+            Err(TryRecvError::Empty) => {}
+        }
         if first == true {
             time::sleep(Duration::from_secs(1)).await;
             first = false;
@@ -982,226 +1015,9 @@ pub async fn replay_presence(
     println!("Shuting down presence replay the Handler thread!!")
 }
 
-#[get("/test")]
-pub async fn test() -> () {
-    use dotenvy::dotenv;
-    dotenv().ok();
-
-    let client_uri =
-        env::var("MONGODB_URI").expect("You must set the MONGODB_URI environment var!");
-
-    let options =
-        ClientOptions::parse_with_resolver_config(&client_uri, ResolverConfig::cloudflare())
-            .await
-            .unwrap();
-    let client = mongodb::Client::with_options(options).unwrap();
-
-    let tracks_collection = client.database("munic").collection::<Tracks>("tracks");
-
-    let pipeline = vec![
-        doc! {"$addFields": { "date": { "$toDate": "$recorded_at" } }  },
-        doc! {"$addFields": { "subs": {"$substr": [ "$recorded_at", 0, 10 ]} }},
-        doc! {
-            "$match": { "subs" :  {"$eq": "2023-01-25"} }
-        },
-        doc! {"$sort": { "date" : 1 }},
-    ];
-
-    let data = tracks_collection
-        .aggregate(pipeline, None)
-        .await
-        .map_err(|e| println!("{}", e))
-        .unwrap();
-
-    use futures::stream::TryStreamExt;
-
-    let tracks: Vec<_> = data
-        .try_collect()
-        .await
-        .map_err(|e| println!("{}", e))
-        .unwrap();
-
-    let client = reqwest::Client::new();
-
-    let mut tracks_array: Vec<Req<Tracks>> = vec![];
-
-    set_value(1);
-
-    let mut ten_minutes = time::interval(Duration::from_secs_f64(5.1).try_into().unwrap());
-
-    let a = vec![Bson::Double(0.0), Bson::Double(0.0)];
-    static DEF: Option<[f64; 2]> = None;
-
-    'outer: for track in tracks {
-        let location = track.get_array("location").unwrap_or_else(|_| &a);
-        let loc = track.get_array("loc").unwrap_or_else(|_| &a);
-
-        ten_minutes.tick().await;
-        println!("sending ...");
-
-        if tracks_array.len() == 10 {
-            break 'outer;
-        }
-
-        let builder = {
-            if get_value() == 1 {
-                client
-                    .post("http://localhost:5000/simulate")
-                    .json(&vec![Req {
-                        meta: Eveent {
-                            event: "track".to_string(),
-                            account: "municio".to_string(),
-                        },
-                        payload: Tracks {
-                            id: track.get_i64("id").unwrap() as i64,
-                            id_str: Some(track.get_str("id_str").unwrap().to_string()),
-                            location: match [
-                                location[0].as_f64().unwrap(),
-                                location[1].as_f64().unwrap(),
-                            ] {
-                                e => {
-                                    if e != [0.0, 0.0] {
-                                        Some(e)
-                                    } else {
-                                        DEF
-                                    }
-                                }
-                            },
-                            loc: match [loc[0].as_f64().unwrap(), loc[1].as_f64().unwrap()] {
-                                e => {
-                                    if e != [0.0, 0.0] {
-                                        Some(e)
-                                    } else {
-                                        DEF
-                                    }
-                                }
-                            },
-                            asset: Some(track.get_str("asset").unwrap().to_string()),
-                            recorded_at: Some(track.get_str("recorded_at").unwrap().to_string()),
-                            recorded_at_ms: Some(
-                                track.get_str("recorded_at_ms").unwrap().to_string(),
-                            ),
-                            received_at: Some(track.get_str("received_at").unwrap().to_string()),
-                            connection_id: track.get_i64("connection_id").unwrap() as i64,
-                            index: track.get_i64("index").unwrap() as i64,
-                            fields: Fields::from(track.get_document("fields").unwrap()),
-                            url: Some(track.get_str("url").unwrap().to_string()),
-                        },
-                    }])
-            } else {
-                client
-                    .post("http://localhost:5000/simulate")
-                    .json(&tracks_array)
-            }
-        };
-        let res = builder.send().await;
-
-        match res {
-            Ok(_a) => match get_value() {
-                1 => continue,
-                0 => {
-                    tracks_array = vec![];
-                    set_value(1);
-                }
-                _ => continue,
-            },
-            Err(_err) => match get_value() {
-                1 => {
-                    tracks_array.push(Req {
-                        meta: Eveent {
-                            event: "track".to_string(),
-                            account: "municio".to_string(),
-                        },
-                        payload: Tracks {
-                            id: track.get_i64("id").unwrap() as i64,
-                            id_str: Some(track.get_str("id_str").unwrap().to_string()),
-                            location: match [
-                                location[0].as_f64().unwrap(),
-                                location[1].as_f64().unwrap(),
-                            ] {
-                                e => {
-                                    if e != [0.0, 0.0] {
-                                        Some(e)
-                                    } else {
-                                        DEF
-                                    }
-                                }
-                            },
-                            loc: match [loc[0].as_f64().unwrap(), loc[1].as_f64().unwrap()] {
-                                e => {
-                                    if e != [0.0, 0.0] {
-                                        Some(e)
-                                    } else {
-                                        DEF
-                                    }
-                                }
-                            },
-                            asset: Some(track.get_str("asset").unwrap().to_string()),
-                            recorded_at: Some(track.get_str("recorded_at").unwrap().to_string()),
-                            recorded_at_ms: Some(
-                                track.get_str("recorded_at_ms").unwrap().to_string(),
-                            ),
-                            received_at: Some(track.get_str("received_at").unwrap().to_string()),
-                            connection_id: track.get_i64("connection_id").unwrap() as i64,
-                            index: track.get_i64("index").unwrap() as i64,
-                            fields: Fields::from(track.get_document("fields").unwrap()),
-                            url: Some(track.get_str("url").unwrap().to_string()),
-                        },
-                    });
-                    set_value(0);
-                }
-                0 => tracks_array.push(Req {
-                    meta: Eveent {
-                        event: "track".to_string(),
-                        account: "municio".to_string(),
-                    },
-                    payload: Tracks {
-                        id: track.get_i64("id").unwrap() as i64,
-                        id_str: Some(track.get_str("id_str").unwrap().to_string()),
-                        location: Some([
-                            location[0].as_f64().unwrap(),
-                            location[1].as_f64().unwrap(),
-                        ]),
-                        loc: Some([loc[0].as_f64().unwrap(), loc[1].as_f64().unwrap()]),
-                        asset: Some(track.get_str("asset").unwrap().to_string()),
-                        recorded_at: Some(track.get_str("recorded_at").unwrap().to_string()),
-                        recorded_at_ms: Some(track.get_str("recorded_at_ms").unwrap().to_string()),
-                        received_at: Some(track.get_str("received_at").unwrap().to_string()),
-                        connection_id: track.get_i64("connection_id").unwrap() as i64,
-                        index: track.get_i64("index").unwrap() as i64,
-                        fields: Fields::from(track.get_document("fields").unwrap()),
-                        url: Some(track.get_str("url").unwrap().to_string()),
-                    },
-                }),
-                _ => continue,
-            },
-        }
-    }
-}
-
 // #[get("/test")]
 // pub async fn test() -> () {
-//     use google_maps::prelude::*;
-//     use polyline;
-
-//     let google_maps_client = GoogleMapsClient::new("AIzaSyAo1agGjrUSZhLwPydiX-_dJ-CEQkxoRmU");
-//     let directions = google_maps_client
-//         .directions(
-//             Location::Address(String::from("ariana, tunisie")),
-//             Location::Address(String::from("marsa tunisie")),
-//             // Location::LatLng(LatLng::try_from_f64(45.403_509, -75.618_904).unwrap()),
-//         )
-//         .with_travel_mode(TravelMode::Driving)
-//         .execute()
-//         .await;
-
-//     set_value(1);
-
-//     let json_data = &directions.unwrap().routes[0].legs[0];
-
 //     use dotenvy::dotenv;
-//     use mongodb::bson::doc;
-//     use mongodb::options::ClientOptions;
 //     dotenv().ok();
 
 //     let client_uri =
@@ -1215,21 +1031,12 @@ pub async fn test() -> () {
 
 //     let tracks_collection = client.database("munic").collection::<Tracks>("tracks");
 
-//     // counting records
-//     let mut number_of_records_needed = 0;
-
-//     for step in &json_data.steps {
-//         let result = polyline::decode_polyline(&step.polyline.points, 6).unwrap();
-
-//         for _ in &result {
-//             number_of_records_needed = number_of_records_needed + 1;
-//         }
-//     }
-
 //     let pipeline = vec![
-//         doc! {"$match": { "fields": { "$ne": {} } }  },
-//         doc! { "$sample": { "size": number_of_records_needed } },
 //         doc! {"$addFields": { "date": { "$toDate": "$recorded_at" } }  },
+//         doc! {"$addFields": { "subs": {"$substr": [ "$recorded_at", 0, 10 ]} }},
+//         doc! {
+//             "$match": { "subs" :  {"$eq": "2023-01-25"} }
+//         },
 //         doc! {"$sort": { "date" : 1 }},
 //     ];
 
@@ -1247,170 +1054,424 @@ pub async fn test() -> () {
 //         .map_err(|e| println!("{}", e))
 //         .unwrap();
 
-//     let mut index = 0;
-
 //     let client = reqwest::Client::new();
 
 //     let mut tracks_array: Vec<Req<Tracks>> = vec![];
 
-//     'outer: for step in &json_data.steps {
-//         use substring::Substring;
-//         use tokio::time::Duration;
+//     set_value(1);
 
-//         let result = polyline::decode_polyline(&step.polyline.points, 5).unwrap();
+//     let mut ten_minutes = time::interval(Duration::from_secs_f64(5.1).try_into().unwrap());
 
-//         let mut ten_minutes = time::interval(
-//             Duration::from_secs_f64(
-//                 (((step.duration.text)
-//                     .to_string()
-//                     .substring(0, (step.duration.text).find(' ').unwrap())
-//                     .parse::<u64>()
-//                     .unwrap())
-//                     * 60) as f64
-//                     / result.num_coords() as f64,
-//             )
-//             .try_into()
-//             .unwrap(),
-//         );
+//     let a = vec![Bson::Double(0.0), Bson::Double(0.0)];
+//     static DEF: Option<[f64; 2]> = None;
 
-//         for coord in &result {
-//             ten_minutes.tick().await;
-//             println!("sending ...");
+//     'outer: for track in tracks {
+//         let location = track.get_array("location").unwrap_or_else(|_| &a);
+//         let loc = track.get_array("loc").unwrap_or_else(|_| &a);
 
-//             use chrono::Duration;
-//             use chrono::Local;
+//         ten_minutes.tick().await;
+//         println!("sending ...");
 
-//             if tracks_array.len() == 10 {
-//                 break 'outer;
+//         if tracks_array.len() == 10 {
+//             break 'outer;
+//         }
+
+//         let builder = {
+//             if get_value() == 1 {
+//                 client.post("http://localhost:5000/").json(&vec![Req {
+//                     meta: Eveent {
+//                         event: "track".to_string(),
+//                         account: "municio".to_string(),
+//                     },
+//                     payload: Tracks {
+//                         id: track.get_i64("id").unwrap() as i64,
+//                         id_str: Some(track.get_str("id_str").unwrap().to_string()),
+//                         location: match [
+//                             location[0].as_f64().unwrap(),
+//                             location[1].as_f64().unwrap(),
+//                         ] {
+//                             e => {
+//                                 if e != [0.0, 0.0] {
+//                                     Some(e)
+//                                 } else {
+//                                     DEF
+//                                 }
+//                             }
+//                         },
+//                         loc: match [loc[0].as_f64().unwrap(), loc[1].as_f64().unwrap()] {
+//                             e => {
+//                                 if e != [0.0, 0.0] {
+//                                     Some(e)
+//                                 } else {
+//                                     DEF
+//                                 }
+//                             }
+//                         },
+//                         asset: Some(track.get_str("asset").unwrap().to_string()),
+//                         recorded_at: Some(track.get_str("recorded_at").unwrap().to_string()),
+//                         recorded_at_ms: Some(track.get_str("recorded_at_ms").unwrap().to_string()),
+//                         received_at: Some(track.get_str("received_at").unwrap().to_string()),
+//                         connection_id: track.get_i64("connection_id").unwrap() as i64,
+//                         index: track.get_i64("index").unwrap() as i64,
+//                         fields: Fields::from(track.get_document("fields").unwrap()),
+//                         url: Some(track.get_str("url").unwrap().to_string()),
+//                     },
+//                 }])
+//             } else {
+//                 client.post("http://localhost:5000/").json(&tracks_array)
 //             }
+//         };
+//         let res = builder.send().await;
 
-//             let builder = {
-//                 if get_value() == 1 {
-//                     client.post("http://localhost:5000/").json(&vec![Req {
-//                         meta: Eveent {
-//                             event: "track".to_string(),
-//                             account: "municio".to_string(),
-//                         },
-//                         payload: Tracks {
-//                             id: tracks[index].get_i64("id").unwrap() as i64,
-//                             id_str: Some(tracks[index].get_str("id_str").unwrap().to_string()),
-//                             location: Some([coord.x, coord.y]),
-//                             loc: Some([coord.x, coord.y]),
-//                             asset: Some(tracks[index].get_str("asset").unwrap().to_string()),
-//                             recorded_at: Some(
-//                                 (Local::now() - Duration::minutes(2))
-//                                     .format("%Y-%m-%dT%H:%M:%SZ")
-//                                     .to_string(),
-//                             ),
-//                             recorded_at_ms: Some(
-//                                 (Local::now() - Duration::minutes(2))
-//                                     .format("%Y-%m-%dT%H:%M:%S%.3fZ")
-//                                     .to_string(),
-//                             ),
-//                             received_at: Some(
-//                                 (Local::now()).format("%Y-%m-%dT%H:%M:%SZ").to_string(),
-//                             ),
-//                             connection_id: tracks[index].get_i64("connection_id").unwrap() as i64,
-//                             index: tracks[index].get_i64("index").unwrap() as i64,
-//                             fields: Fields::from(tracks[index].get_document("fields").unwrap()),
-//                             url: Some(tracks[index].get_str("url").unwrap().to_string()),
-//                         },
-//                     }])
-//                 } else {
-//                     client.post("http://localhost:5000/").json(&tracks_array)
+//         match res {
+//             Ok(_a) => match get_value() {
+//                 1 => continue,
+//                 0 => {
+//                     tracks_array = vec![];
+//                     set_value(1);
 //                 }
-//             };
-//             let res = builder.send().await;
-
-//             index = index + 1;
-
-//             match res {
-//                 Ok(_a) => match get_value() {
-//                     1 => continue,
-//                     0 => {
-//                         tracks_array = vec![];
-//                         set_value(1);
-//                     }
-//                     _ => continue,
-//                 },
-//                 Err(_err) => match get_value() {
-//                     1 => {
-//                         tracks_array.push(Req {
-//                             meta: Eveent {
-//                                 event: "track".to_string(),
-//                                 account: "municio".to_string(),
-//                             },
-//                             payload: Tracks {
-//                                 id: tracks[index].get_i64("id").unwrap() as i64,
-//                                 id_str: Some(tracks[index].get_str("id_str").unwrap().to_string()),
-//                                 location: Some([coord.x, coord.y]),
-//                                 loc: Some([coord.x, coord.y]),
-//                                 asset: Some(tracks[index].get_str("asset").unwrap().to_string()),
-//                                 recorded_at: Some(
-//                                     (Local::now() - Duration::minutes(2))
-//                                         .format("%Y-%m-%dT%H:%M:%SZ")
-//                                         .to_string(),
-//                                 ),
-//                                 recorded_at_ms: Some(
-//                                     (Local::now() - Duration::minutes(2))
-//                                         .format("%Y-%m-%dT%H:%M:%S%.3fZ")
-//                                         .to_string(),
-//                                 ),
-//                                 received_at: Some(
-//                                     (Local::now()).format("%Y-%m-%dT%H:%M:%SZ").to_string(),
-//                                 ),
-//                                 connection_id: tracks[index].get_i64("connection_id").unwrap()
-//                                     as i64,
-//                                 index: tracks[index].get_i64("index").unwrap() as i64,
-//                                 fields: Fields::from(tracks[index].get_document("fields").unwrap()),
-//                                 url: Some(tracks[index].get_str("url").unwrap().to_string()),
-//                             },
-//                         });
-//                         set_value(0);
-//                     }
-//                     0 => tracks_array.push(Req {
+//                 _ => continue,
+//             },
+//             Err(_err) => match get_value() {
+//                 1 => {
+//                     tracks_array.push(Req {
 //                         meta: Eveent {
 //                             event: "track".to_string(),
 //                             account: "municio".to_string(),
 //                         },
 //                         payload: Tracks {
-//                             id: tracks[index].get_i64("id").unwrap() as i64,
-//                             id_str: Some(tracks[index].get_str("id_str").unwrap().to_string()),
-//                             location: Some([coord.x, coord.y]),
-//                             loc: Some([coord.x, coord.y]),
-//                             asset: Some(tracks[index].get_str("asset").unwrap().to_string()),
-//                             recorded_at: Some(
-//                                 (Local::now() - Duration::minutes(2))
-//                                     .format("%Y-%m-%dT%H:%M:%SZ")
-//                                     .to_string(),
-//                             ),
+//                             id: track.get_i64("id").unwrap() as i64,
+//                             id_str: Some(track.get_str("id_str").unwrap().to_string()),
+//                             location: match [
+//                                 location[0].as_f64().unwrap(),
+//                                 location[1].as_f64().unwrap(),
+//                             ] {
+//                                 e => {
+//                                     if e != [0.0, 0.0] {
+//                                         Some(e)
+//                                     } else {
+//                                         DEF
+//                                     }
+//                                 }
+//                             },
+//                             loc: match [loc[0].as_f64().unwrap(), loc[1].as_f64().unwrap()] {
+//                                 e => {
+//                                     if e != [0.0, 0.0] {
+//                                         Some(e)
+//                                     } else {
+//                                         DEF
+//                                     }
+//                                 }
+//                             },
+//                             asset: Some(track.get_str("asset").unwrap().to_string()),
+//                             recorded_at: Some(track.get_str("recorded_at").unwrap().to_string()),
 //                             recorded_at_ms: Some(
-//                                 (Local::now() - Duration::minutes(2))
-//                                     .format("%Y-%m-%dT%H:%M:%S%.3fZ")
-//                                     .to_string(),
+//                                 track.get_str("recorded_at_ms").unwrap().to_string(),
 //                             ),
-//                             received_at: Some(
-//                                 (Local::now()).format("%Y-%m-%dT%H:%M:%SZ").to_string(),
-//                             ),
-//                             connection_id: tracks[index].get_i64("connection_id").unwrap() as i64,
-//                             index: tracks[index].get_i64("index").unwrap() as i64,
-//                             fields: Fields::from(tracks[index].get_document("fields").unwrap()),
-//                             url: Some(tracks[index].get_str("url").unwrap().to_string()),
+//                             received_at: Some(track.get_str("received_at").unwrap().to_string()),
+//                             connection_id: track.get_i64("connection_id").unwrap() as i64,
+//                             index: track.get_i64("index").unwrap() as i64,
+//                             fields: Fields::from(track.get_document("fields").unwrap()),
+//                             url: Some(track.get_str("url").unwrap().to_string()),
 //                         },
-//                     }),
-//                     _ => continue,
-//                 },
-//             }
+//                     });
+//                     set_value(0);
+//                 }
+//                 0 => tracks_array.push(Req {
+//                     meta: Eveent {
+//                         event: "track".to_string(),
+//                         account: "municio".to_string(),
+//                     },
+//                     payload: Tracks {
+//                         id: track.get_i64("id").unwrap() as i64,
+//                         id_str: Some(track.get_str("id_str").unwrap().to_string()),
+//                         location: Some([
+//                             location[0].as_f64().unwrap(),
+//                             location[1].as_f64().unwrap(),
+//                         ]),
+//                         loc: Some([loc[0].as_f64().unwrap(), loc[1].as_f64().unwrap()]),
+//                         asset: Some(track.get_str("asset").unwrap().to_string()),
+//                         recorded_at: Some(track.get_str("recorded_at").unwrap().to_string()),
+//                         recorded_at_ms: Some(track.get_str("recorded_at_ms").unwrap().to_string()),
+//                         received_at: Some(track.get_str("received_at").unwrap().to_string()),
+//                         connection_id: track.get_i64("connection_id").unwrap() as i64,
+//                         index: track.get_i64("index").unwrap() as i64,
+//                         fields: Fields::from(track.get_document("fields").unwrap()),
+//                         url: Some(track.get_str("url").unwrap().to_string()),
+//                     },
+//                 }),
+//                 _ => continue,
+//             },
 //         }
 //     }
 // }
 
+#[get("/test")]
+pub async fn test() -> () {
+    use google_maps::prelude::*;
+    use polyline;
+
+    let google_maps_client = GoogleMapsClient::new("AIzaSyAo1agGjrUSZhLwPydiX-_dJ-CEQkxoRmU");
+    let directions = google_maps_client
+        .directions(
+            Location::Address(String::from("ariana tunisie")),
+            Location::Address(String::from("marsa tunisie")),
+            // Location::LatLng(LatLng::try_from_f64(45.403_509, -75.618_904).unwrap()),
+        )
+        .with_travel_mode(TravelMode::Driving)
+        .execute()
+        .await;
+
+    set_value(1);
+
+    let json_data = &directions.unwrap().routes[0].legs[0];
+
+    use dotenvy::dotenv;
+    use mongodb::bson::doc;
+    use mongodb::options::ClientOptions;
+    dotenv().ok();
+
+    let client_uri =
+        env::var("MONGODB_URI").expect("You must set the MONGODB_URI environment var!");
+
+    let options =
+        ClientOptions::parse_with_resolver_config(&client_uri, ResolverConfig::cloudflare())
+            .await
+            .unwrap();
+    let client = mongodb::Client::with_options(options).unwrap();
+
+    let tracks_collection = client.database("munic").collection::<Tracks>("tracks");
+
+    // counting records
+    let mut number_of_records_needed = 0;
+
+    for step in &json_data.steps {
+        let result = polyline::decode_polyline(&step.polyline.points, 6).unwrap();
+
+        for _ in &result {
+            number_of_records_needed = number_of_records_needed + 1;
+        }
+    }
+
+    let pipeline = vec![
+        doc! {"$match": { "fields": { "$ne": {} } }  },
+        doc! {"$addFields": { "date": { "$toDate": "$recorded_at" } }  },
+        doc! {"$sort": { "date" : 1 }},
+    ];
+
+    let data = tracks_collection
+        .aggregate(pipeline, None)
+        .await
+        .map_err(|e| println!("{}", e))
+        .unwrap();
+
+    use futures::stream::TryStreamExt;
+
+    let tracks: Vec<_> = data
+        .try_collect()
+        .await
+        .map_err(|e| println!("{}", e))
+        .unwrap();
+
+    let mut index = 0;
+
+    let client = reqwest::Client::new();
+
+    let mut tracks_array: Vec<Req<Tracks>> = vec![];
+
+    'outer: for step in &json_data.steps {
+        use substring::Substring;
+        use tokio::time::Duration;
+
+        let result = polyline::decode_polyline(&step.polyline.points, 5).unwrap();
+
+        let mut ten_minutes = time::interval(
+            Duration::from_secs_f64(
+                (((step.duration.text)
+                    .to_string()
+                    .substring(0, (step.duration.text).find(' ').unwrap())
+                    .parse::<u64>()
+                    .unwrap())
+                    * 60) as f64
+                    / result.num_coords() as f64,
+            )
+            .try_into()
+            .unwrap(),
+        );
+
+        for coord in &result {
+            ten_minutes.tick().await;
+            println!("sending ...");
+
+            use chrono::Duration;
+            use chrono::Local;
+
+            if tracks_array.len() == 10 {
+                break 'outer;
+            }
+
+            let builder = {
+                if get_value() == 1 {
+                    client.post("http://localhost:5000/").json(&vec![Req {
+                        meta: Eveent {
+                            event: "track".to_string(),
+                            account: "municio".to_string(),
+                        },
+                        payload: Tracks {
+                            id: tracks[index].get_i64("id").unwrap() as i64,
+                            id_str: Some(tracks[index].get_str("id_str").unwrap().to_string()),
+                            location: Some([coord.x, coord.y]),
+                            loc: Some([coord.x, coord.y]),
+                            asset: Some(tracks[index].get_str("asset").unwrap().to_string()),
+                            recorded_at: Some(
+                                (Local::now() - Duration::minutes(2))
+                                    .format("%Y-%m-%dT%H:%M:%SZ")
+                                    .to_string(),
+                            ),
+                            recorded_at_ms: Some(
+                                (Local::now() - Duration::minutes(2))
+                                    .format("%Y-%m-%dT%H:%M:%S%.3fZ")
+                                    .to_string(),
+                            ),
+                            received_at: Some(
+                                (Local::now()).format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+                            ),
+                            connection_id: tracks[index].get_i64("connection_id").unwrap() as i64,
+                            index: tracks[index].get_i64("index").unwrap() as i64,
+                            fields: Fields::from(tracks[index].get_document("fields").unwrap()),
+                            url: Some(tracks[index].get_str("url").unwrap().to_string()),
+                        },
+                    }])
+                } else {
+                    client.post("http://localhost:5000/").json(&tracks_array)
+                }
+            };
+            let res = builder.send().await;
+
+            index = index + 1;
+
+            match res {
+                Ok(_a) => match get_value() {
+                    1 => continue,
+                    0 => {
+                        tracks_array = vec![];
+                        set_value(1);
+                    }
+                    _ => continue,
+                },
+                Err(_err) => match get_value() {
+                    1 => {
+                        tracks_array.push(Req {
+                            meta: Eveent {
+                                event: "track".to_string(),
+                                account: "municio".to_string(),
+                            },
+                            payload: Tracks {
+                                id: tracks[index].get_i64("id").unwrap() as i64,
+                                id_str: Some(tracks[index].get_str("id_str").unwrap().to_string()),
+                                location: Some([coord.x, coord.y]),
+                                loc: Some([coord.x, coord.y]),
+                                asset: Some(tracks[index].get_str("asset").unwrap().to_string()),
+                                recorded_at: Some(
+                                    (Local::now() - Duration::minutes(2))
+                                        .format("%Y-%m-%dT%H:%M:%SZ")
+                                        .to_string(),
+                                ),
+                                recorded_at_ms: Some(
+                                    (Local::now() - Duration::minutes(2))
+                                        .format("%Y-%m-%dT%H:%M:%S%.3fZ")
+                                        .to_string(),
+                                ),
+                                received_at: Some(
+                                    (Local::now()).format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+                                ),
+                                connection_id: tracks[index].get_i64("connection_id").unwrap()
+                                    as i64,
+                                index: tracks[index].get_i64("index").unwrap() as i64,
+                                fields: Fields::from(tracks[index].get_document("fields").unwrap()),
+                                url: Some(tracks[index].get_str("url").unwrap().to_string()),
+                            },
+                        });
+                        set_value(0);
+                    }
+                    0 => tracks_array.push(Req {
+                        meta: Eveent {
+                            event: "track".to_string(),
+                            account: "municio".to_string(),
+                        },
+                        payload: Tracks {
+                            id: tracks[index].get_i64("id").unwrap() as i64,
+                            id_str: Some(tracks[index].get_str("id_str").unwrap().to_string()),
+                            location: Some([coord.x, coord.y]),
+                            loc: Some([coord.x, coord.y]),
+                            asset: Some(tracks[index].get_str("asset").unwrap().to_string()),
+                            recorded_at: Some(
+                                (Local::now() - Duration::minutes(2))
+                                    .format("%Y-%m-%dT%H:%M:%SZ")
+                                    .to_string(),
+                            ),
+                            recorded_at_ms: Some(
+                                (Local::now() - Duration::minutes(2))
+                                    .format("%Y-%m-%dT%H:%M:%S%.3fZ")
+                                    .to_string(),
+                            ),
+                            received_at: Some(
+                                (Local::now()).format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+                            ),
+                            connection_id: tracks[index].get_i64("connection_id").unwrap() as i64,
+                            index: tracks[index].get_i64("index").unwrap() as i64,
+                            fields: Fields::from(tracks[index].get_document("fields").unwrap()),
+                            url: Some(tracks[index].get_str("url").unwrap().to_string()),
+                        },
+                    }),
+                    _ => continue,
+                },
+            }
+        }
+    }
+}
+
+#[post("/abort", data = "<url>")]
+pub fn abort(url: String) {
+    for index in 0..THREADS.len() {
+        match THREADS.load(index) {
+            Some(e) => {
+                if e.0 == url {
+                    let _ = &e.1.abort();
+                    match e.2.send(()) {
+                        Ok(_e) => println!("Terminating tracks signal !"),
+                        Err(e) => println!("{:?}", e),
+                    }
+                    match e.3.send(()) {
+                        Ok(_e) => println!("Terminating presences signal !"),
+                        Err(e) => println!("{:?}", e),
+                    }
+                    THREADS.store(index, None);
+                }
+            }
+            None => (),
+        }
+    }
+}
+
 #[get("/events")]
 pub fn stream() -> EventStream![] {
+    use serde_json::{Map, Value};
     EventStream! {
         let mut interval = time::interval(Duration::from_secs(2));
+
         loop {
-            yield Event::data(get_value().to_string());
+            let mut arr = Vec::<String>::new();
+            for index in 0..THREADS.len(){
+                match THREADS.load(index){
+                    Some(e)=> arr.push(e.0.clone()),
+                    None=>()
+                }
+            }
+            let mut map = Map::new();
+            map.insert("threads".to_string(), arr.into());
+            map.insert("http".to_string(),Value::String( get_value().to_string()));
+            yield Event::json(&map);
             interval.tick().await;
         }
     }
