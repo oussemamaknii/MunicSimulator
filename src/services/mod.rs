@@ -12,6 +12,7 @@ use rocket::response::stream::{Event, EventStream};
 use rocket::response::Redirect;
 use rocket::uri;
 use std::fs;
+use std::sync::atomic::AtomicI8;
 use tokio::task::JoinHandle;
 
 use rocket::http::ContentType;
@@ -38,20 +39,11 @@ use url::Url;
 
 use core::sync::atomic::{AtomicUsize, Ordering};
 
-static THREADS: Lazy<AtomicOptionRefArray<(String, JoinHandle<()>, Sender<()>, Sender<()>)>> =
-    Lazy::new(|| AtomicOptionRefArray::new(10));
-
-static STATE: AtomicUsize = AtomicUsize::new(3);
+static THREADS: Lazy<
+    AtomicOptionRefArray<(String, JoinHandle<()>, Sender<()>, Sender<()>, AtomicI8)>,
+> = Lazy::new(|| AtomicOptionRefArray::new(10));
 
 static INDEX: AtomicUsize = AtomicUsize::new(0);
-
-pub fn set_value(val: usize) {
-    STATE.store(val, Ordering::Relaxed)
-}
-
-pub fn get_value() -> usize {
-    STATE.load(Ordering::Relaxed)
-}
 
 #[post("/upload", data = "<data>")]
 pub async fn upload(content_type: &ContentType, data: Data<'_>) -> Redirect {
@@ -264,8 +256,23 @@ pub async fn simulate(content_type: &ContentType, user_input: Data<'_>) -> Redir
         }
     }
 
-    if ping_server(turl_text.clone()) {
-        set_value(1);
+    let mut exists: bool = false;
+
+    for index in 0..THREADS.len() {
+        match THREADS.load(index) {
+            Some(e) => {
+                if e.0 == turl_text {
+                    exists = true;
+                    break;
+                } else {
+                    exists = false;
+                }
+            }
+            None => exists = false,
+        };
+    }
+
+    if ping_server(turl_text.clone()) && !exists {
         tokio::spawn(async move {
             // use futures::future::join_all;
             // let mut handles = vec![];
@@ -316,17 +323,19 @@ pub async fn simulate(content_type: &ContentType, user_input: Data<'_>) -> Redir
 
             THREADS.store(
                 INDEX.load(Ordering::Relaxed),
-                (turl_thread, worker, tsender, psender),
+                (turl_thread, worker, tsender, psender, AtomicI8::new(1)),
             );
             INDEX.store(INDEX.load(Ordering::Relaxed) + 1, Ordering::Relaxed);
+
             // handles.push(worker);
             // join_all(handles).await;
+
             println!("Shuting down the Request Handler thread!!")
         });
 
         return Redirect::to(uri!(index("Simulating !")));
     }
-    Redirect::to(uri!(index("Didn't receive a Pong !")))
+    Redirect::to(uri!(index("Didn't receive a Pong or url already is use !")))
 }
 
 async fn simulation(
@@ -450,6 +459,20 @@ async fn simulate_tracks(
 
     let mut tracks_array: Vec<Req<Tracks>> = vec![];
 
+    let mut current_status: i8 = 1;
+
+    for index in 0..THREADS.len() {
+        match THREADS.load(index) {
+            Some(e) => {
+                if e.0 == *url {
+                    current_status = e.4.load(Ordering::Relaxed);
+                    THREADS.store(index, None);
+                }
+            }
+            None => (),
+        }
+    }
+
     'outer: for step in &json_data.steps {
         use substring::Substring;
         use tokio::time::Duration;
@@ -488,7 +511,7 @@ async fn simulate_tracks(
             }
 
             let builder = {
-                if get_value() == 1 {
+                if current_status == 1 {
                     client.post(url).json(&vec![Req {
                         meta: Eveent {
                             event: "track".to_string(),
@@ -528,15 +551,15 @@ async fn simulate_tracks(
             index = index + 1;
 
             match res {
-                Ok(_a) => match get_value() {
+                Ok(_a) => match current_status {
                     1 => continue,
                     0 => {
                         tracks_array = vec![];
-                        set_value(1);
+                        current_status = 1;
                     }
                     _ => continue,
                 },
-                Err(_err) => match get_value() {
+                Err(_err) => match current_status {
                     1 => {
                         tracks_array.push(Req {
                             meta: Eveent {
@@ -569,7 +592,7 @@ async fn simulate_tracks(
                                 url: Some(tracks[index].get_str("url").unwrap().to_string()),
                             },
                         });
-                        set_value(0);
+                        current_status = 0;
                     }
                     0 => tracks_array.push(Req {
                         meta: Eveent {
@@ -604,6 +627,16 @@ async fn simulate_tracks(
                     _ => continue,
                 },
             }
+            for index in 0..THREADS.len() {
+                match THREADS.load(index) {
+                    Some(e) => {
+                        if e.0 == *url {
+                            e.4.store(current_status, Ordering::Relaxed);
+                        }
+                    }
+                    None => (),
+                }
+            }
         }
     }
     println!("Shuting down tracks simulation the Handler thread!!")
@@ -620,6 +653,19 @@ async fn simulate_presences(
     let mut old_pres: Document = Document::new();
 
     let mut first = true;
+
+    let mut current_status: i8 = 1;
+
+    for index in 0..THREADS.len() {
+        match THREADS.load(index) {
+            Some(e) => {
+                if e.0 == *url {
+                    current_status = e.4.load(Ordering::Relaxed);
+                }
+            }
+            None => (),
+        }
+    }
 
     'outer: for presence in presences {
         if first == true {
@@ -654,7 +700,7 @@ async fn simulate_presences(
         }
 
         let builder = {
-            if get_value() == 1 {
+            if current_status == 1 {
                 presence_client.post(url).json(&vec![Req {
                     meta: Eveent {
                         event: "presence".to_string(),
@@ -705,15 +751,15 @@ async fn simulate_presences(
         let res = builder.send().await;
 
         match res {
-            Ok(_a) => match get_value() {
+            Ok(_a) => match current_status {
                 1 => continue,
                 0 => {
                     presences_array = vec![];
-                    set_value(1);
+                    current_status = 1;
                 }
                 _ => continue,
             },
-            Err(_err) => match get_value() {
+            Err(_err) => match current_status {
                 1 => {
                     presences_array.push(Req {
                         meta: Eveent {
@@ -758,7 +804,7 @@ async fn simulate_presences(
                             time: Some((Local::now()).format("%Y-%m-%dT%H:%M:%SZ").to_string()),
                         },
                     });
-                    set_value(0);
+                    current_status = 0;
                 }
                 0 => presences_array.push(Req {
                     meta: Eveent {
@@ -805,6 +851,16 @@ async fn simulate_presences(
                 }),
                 _ => continue,
             },
+        }
+        for index in 0..THREADS.len() {
+            match THREADS.load(index) {
+                Some(e) => {
+                    if e.0 == *url {
+                        e.4.store(current_status, Ordering::Relaxed);
+                    }
+                }
+                None => (),
+            }
         }
     }
     println!("Shuting down presence simulation the Handler thread!!")
@@ -924,6 +980,19 @@ pub async fn replay_tracks(
 
     let mut first = true;
 
+    let mut current_status: i8 = 1;
+
+    for index in 0..THREADS.len() {
+        match THREADS.load(index) {
+            Some(e) => {
+                if e.0 == *url {
+                    current_status = e.4.load(Ordering::Relaxed);
+                }
+            }
+            None => (),
+        }
+    }
+
     'outer: for track in tracks {
         if first == true {
             time::sleep(Duration::from_secs(1)).await;
@@ -963,7 +1032,7 @@ pub async fn replay_tracks(
         }
 
         let builder = {
-            if get_value() == 1 {
+            if current_status == 1 {
                 track_client.post(url).json(&vec![Req {
                     meta: Eveent {
                         event: "track".to_string(),
@@ -1010,15 +1079,15 @@ pub async fn replay_tracks(
         let res = builder.send().await;
 
         match res {
-            Ok(_a) => match get_value() {
+            Ok(_a) => match current_status {
                 1 => continue,
                 0 => {
                     tracks_array = vec![];
-                    set_value(1);
+                    current_status = 1;
                 }
                 _ => continue,
             },
-            Err(_err) => match get_value() {
+            Err(_err) => match current_status {
                 1 => {
                     tracks_array.push(Req {
                         meta: Eveent {
@@ -1061,7 +1130,7 @@ pub async fn replay_tracks(
                             url: Some(track.get_str("url").unwrap().to_string()),
                         },
                     });
-                    set_value(0);
+                    current_status = 0;
                 }
                 0 => tracks_array.push(Req {
                     meta: Eveent {
@@ -1089,6 +1158,16 @@ pub async fn replay_tracks(
                 _ => continue,
             },
         }
+        for index in 0..THREADS.len() {
+            match THREADS.load(index) {
+                Some(e) => {
+                    if e.0 == *url {
+                        e.4.store(current_status, Ordering::Relaxed);
+                    }
+                }
+                None => (),
+            }
+        }
     }
     println!("Shuting down tracks replay the Handler thread!!")
 }
@@ -1104,6 +1183,19 @@ pub async fn replay_presence(
     let mut old_pres: Document = Document::new();
 
     let mut first = true;
+
+    let mut current_status: i8 = 1;
+
+    for index in 0..THREADS.len() {
+        match THREADS.load(index) {
+            Some(e) => {
+                if e.0 == *url {
+                    current_status = e.4.load(Ordering::Relaxed);
+                }
+            }
+            None => (),
+        }
+    }
 
     'outer: for presence in presences {
         if first == true {
@@ -1138,7 +1230,7 @@ pub async fn replay_presence(
         }
 
         let builder = {
-            if get_value() == 1 {
+            if current_status == 1 {
                 presence_client.post(url).json(&vec![Req {
                     meta: Eveent {
                         event: "presence".to_string(),
@@ -1192,15 +1284,15 @@ pub async fn replay_presence(
         let res = builder.send().await;
 
         match res {
-            Ok(_a) => match get_value() {
+            Ok(_a) => match current_status {
                 1 => continue,
                 0 => {
                     presences_array = vec![];
-                    set_value(1);
+                    current_status = 1;
                 }
                 _ => continue,
             },
-            Err(_err) => match get_value() {
+            Err(_err) => match current_status {
                 1 => {
                     presences_array.push(Req {
                         meta: Eveent {
@@ -1248,7 +1340,7 @@ pub async fn replay_presence(
                             },
                         },
                     });
-                    set_value(0);
+                    current_status = 0;
                 }
                 0 => presences_array.push(Req {
                     meta: Eveent {
@@ -1299,6 +1391,16 @@ pub async fn replay_presence(
                 _ => continue,
             },
         }
+        for index in 0..THREADS.len() {
+            match THREADS.load(index) {
+                Some(e) => {
+                    if e.0 == *url {
+                        e.4.store(current_status, Ordering::Relaxed);
+                    }
+                }
+                None => (),
+            }
+        }
     }
     println!("Shuting down presence replay the Handler thread!!")
 }
@@ -1333,16 +1435,15 @@ pub fn stream() -> EventStream![] {
         let mut interval = time::interval(Duration::from_secs(2));
 
         loop {
-            let mut arr = Vec::<String>::new();
+            let mut map = Map::new();
             for index in 0..THREADS.len(){
                 match THREADS.load(index){
-                    Some(e)=> arr.push(e.0.clone()),
+                    Some(e)=> {
+                        map.insert(e.0.to_string(), e.4.load(Ordering::Relaxed).into());
+                    },
                     None=>()
                 }
             }
-            let mut map = Map::new();
-            map.insert("threads".to_string(), arr.into());
-            map.insert("http".to_string(), get_value().into());
             yield Event::json(&map);
             interval.tick().await;
         }

@@ -236,6 +236,7 @@
         <tr>
             <th>Thread URL</th>
             <th>Abort</th>
+            <th>HTTP Request Status</th>
         </tr>
     </thead>
     <tbody >
@@ -267,11 +268,6 @@
         <label><strong>Your URL :</strong></label>
         <input name="url" id="url" type="text" placeholder="Enter your Notification URL">
         <p>{{ msg }}</p>
-
-        <div id="http-div">
-          <span class="logged-in" id="newSpan">●</span>
-          <p id="http"></p>
-        </div>
 
         <h1>Coordinates</h1>
         <div class="alert alert-warning">
@@ -356,7 +352,6 @@
   const key = document.getElementById("key");
   const lon = document.getElementById("lon");
   const lat = document.getElementById("lat");
-  const newSpan = document.getElementById("newSpan");
   lon.disabled = true;
   lat.disabled = true;
   button1.disabled = true;
@@ -375,31 +370,19 @@
   evtSource.onmessage = function (e) {
     const obj = JSON.parse(e.data);
 
-    if (obj.http == 1) {
-      newSpan.setAttribute('class', 'logged-in');
-      http.textContent = "HTTP Request Status : 200";
-    }
-    else if (obj.http == 0) {
-      newSpan.setAttribute('class', 'logged-out');
-      http.textContent = "HTTP Request Status : 503";
-    }
-    else {
-      newSpan.setAttribute('class', 'waiting');
-      http.textContent = "HTTP Request Status : _";
-    }
-
     var tbodyRef = document.getElementById('thread-table').getElementsByTagName('tbody')[0];
 
     tbodyRef.innerHTML = '';
 
-    for (var i = 0; i < obj.threads.length; i++) {
+    for (const [key, value] of Object.entries(obj)) {
+
       var newRow = tbodyRef.insertRow();
-      newRow.setAttribute("id","row"+i);
+      newRow.setAttribute("id","row"+key);
 
       var newCell = newRow.insertCell();
       newCell.setAttribute("class","column-data");
 
-      var newText = document.createTextNode(obj.threads[i]);
+      var newText = document.createTextNode(key);
       
       newCell.appendChild(newText);
       
@@ -410,6 +393,33 @@
       btn.setAttribute("id","btn");
       btn.textContent = "Abort Thread !";
       newCell1.appendChild(btn);
+      
+      var newCell2 = newRow.insertCell();
+
+      const newSpan = document.createElement("span");
+      newSpan.setAttribute('id', 'newSpan');
+      newSpan.textContent = "●";
+      const newP = document.createElement("p");
+      newP.setAttribute('id', 'http');
+      const newDiv = document.createElement("div");
+      newDiv.setAttribute('id', 'http-div');
+
+      if (value == 1) {
+        newSpan.setAttribute('class', 'logged-in');
+        newP.textContent = "code : 200";
+      }
+      else if (value == 0) {
+        newSpan.setAttribute('class', 'logged-out');
+        newP.textContent = "code : 503";
+      }
+      else {
+        newSpan.setAttribute('class', 'waiting');
+        newP.textContent = "code : _";
+      }
+      
+      newDiv.appendChild(newSpan);
+      newDiv.appendChild(newP);
+      newCell2.appendChild(newDiv);
     }
 
     let allButtons = document.getElementsByClassName('inp');
