@@ -461,18 +461,6 @@ async fn simulate_tracks(
 
     let mut current_status: i8 = 1;
 
-    for index in 0..THREADS.len() {
-        match THREADS.load(index) {
-            Some(e) => {
-                if e.0 == *url {
-                    current_status = e.4.load(Ordering::Relaxed);
-                    THREADS.store(index, None);
-                }
-            }
-            None => (),
-        }
-    }
-
     'outer: for step in &json_data.steps {
         use substring::Substring;
         use tokio::time::Duration;
@@ -556,6 +544,16 @@ async fn simulate_tracks(
                     0 => {
                         tracks_array = vec![];
                         current_status = 1;
+                        for index in 0..THREADS.len() {
+                            match THREADS.load(index) {
+                                Some(e) => {
+                                    if e.0 == *url {
+                                        e.4.store(current_status, Ordering::Relaxed);
+                                    }
+                                }
+                                None => (),
+                            }
+                        }
                     }
                     _ => continue,
                 },
@@ -593,6 +591,16 @@ async fn simulate_tracks(
                             },
                         });
                         current_status = 0;
+                        for index in 0..THREADS.len() {
+                            match THREADS.load(index) {
+                                Some(e) => {
+                                    if e.0 == *url {
+                                        e.4.store(current_status, Ordering::Relaxed);
+                                    }
+                                }
+                                None => (),
+                            }
+                        }
                     }
                     0 => tracks_array.push(Req {
                         meta: Eveent {
@@ -627,16 +635,6 @@ async fn simulate_tracks(
                     _ => continue,
                 },
             }
-            for index in 0..THREADS.len() {
-                match THREADS.load(index) {
-                    Some(e) => {
-                        if e.0 == *url {
-                            e.4.store(current_status, Ordering::Relaxed);
-                        }
-                    }
-                    None => (),
-                }
-            }
         }
     }
     println!("Shuting down tracks simulation the Handler thread!!")
@@ -655,17 +653,6 @@ async fn simulate_presences(
     let mut first = true;
 
     let mut current_status: i8 = 1;
-
-    for index in 0..THREADS.len() {
-        match THREADS.load(index) {
-            Some(e) => {
-                if e.0 == *url {
-                    current_status = e.4.load(Ordering::Relaxed);
-                }
-            }
-            None => (),
-        }
-    }
 
     'outer: for presence in presences {
         if first == true {
@@ -756,6 +743,16 @@ async fn simulate_presences(
                 0 => {
                     presences_array = vec![];
                     current_status = 1;
+                    for index in 0..THREADS.len() {
+                        match THREADS.load(index) {
+                            Some(e) => {
+                                if e.0 == *url {
+                                    e.4.store(current_status, Ordering::Relaxed);
+                                }
+                            }
+                            None => (),
+                        }
+                    }
                 }
                 _ => continue,
             },
@@ -805,6 +802,16 @@ async fn simulate_presences(
                         },
                     });
                     current_status = 0;
+                    for index in 0..THREADS.len() {
+                        match THREADS.load(index) {
+                            Some(e) => {
+                                if e.0 == *url {
+                                    e.4.store(current_status, Ordering::Relaxed);
+                                }
+                            }
+                            None => (),
+                        }
+                    }
                 }
                 0 => presences_array.push(Req {
                     meta: Eveent {
@@ -982,17 +989,6 @@ pub async fn replay_tracks(
 
     let mut current_status: i8 = 1;
 
-    for index in 0..THREADS.len() {
-        match THREADS.load(index) {
-            Some(e) => {
-                if e.0 == *url {
-                    current_status = e.4.load(Ordering::Relaxed);
-                }
-            }
-            None => (),
-        }
-    }
-
     'outer: for track in tracks {
         if first == true {
             time::sleep(Duration::from_secs(1)).await;
@@ -1084,6 +1080,16 @@ pub async fn replay_tracks(
                 0 => {
                     tracks_array = vec![];
                     current_status = 1;
+                    for index in 0..THREADS.len() {
+                        match THREADS.load(index) {
+                            Some(e) => {
+                                if e.0 == *url {
+                                    e.4.store(current_status, Ordering::Relaxed);
+                                }
+                            }
+                            None => (),
+                        }
+                    }
                 }
                 _ => continue,
             },
@@ -1131,6 +1137,16 @@ pub async fn replay_tracks(
                         },
                     });
                     current_status = 0;
+                    for index in 0..THREADS.len() {
+                        match THREADS.load(index) {
+                            Some(e) => {
+                                if e.0 == *url {
+                                    e.4.store(current_status, Ordering::Relaxed);
+                                }
+                            }
+                            None => (),
+                        }
+                    }
                 }
                 0 => tracks_array.push(Req {
                     meta: Eveent {
@@ -1158,16 +1174,6 @@ pub async fn replay_tracks(
                 _ => continue,
             },
         }
-        for index in 0..THREADS.len() {
-            match THREADS.load(index) {
-                Some(e) => {
-                    if e.0 == *url {
-                        e.4.store(current_status, Ordering::Relaxed);
-                    }
-                }
-                None => (),
-            }
-        }
     }
     println!("Shuting down tracks replay the Handler thread!!")
 }
@@ -1185,17 +1191,6 @@ pub async fn replay_presence(
     let mut first = true;
 
     let mut current_status: i8 = 1;
-
-    for index in 0..THREADS.len() {
-        match THREADS.load(index) {
-            Some(e) => {
-                if e.0 == *url {
-                    current_status = e.4.load(Ordering::Relaxed);
-                }
-            }
-            None => (),
-        }
-    }
 
     'outer: for presence in presences {
         if first == true {
@@ -1289,6 +1284,16 @@ pub async fn replay_presence(
                 0 => {
                     presences_array = vec![];
                     current_status = 1;
+                    for index in 0..THREADS.len() {
+                        match THREADS.load(index) {
+                            Some(e) => {
+                                if e.0 == *url {
+                                    e.4.store(current_status, Ordering::Relaxed);
+                                }
+                            }
+                            None => (),
+                        }
+                    }
                 }
                 _ => continue,
             },
@@ -1341,6 +1346,16 @@ pub async fn replay_presence(
                         },
                     });
                     current_status = 0;
+                    for index in 0..THREADS.len() {
+                        match THREADS.load(index) {
+                            Some(e) => {
+                                if e.0 == *url {
+                                    e.4.store(current_status, Ordering::Relaxed);
+                                }
+                            }
+                            None => (),
+                        }
+                    }
                 }
                 0 => presences_array.push(Req {
                     meta: Eveent {
