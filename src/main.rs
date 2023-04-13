@@ -13,8 +13,7 @@ fn rocket() -> _ {
                 services::simulate,
                 services::index,
                 services::indexx,
-                services::file_json,
-                services::test,
+                services::upload,
                 services::stream,
                 services::abort
             ],

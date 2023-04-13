@@ -374,6 +374,20 @@
 
   evtSource.onmessage = function (e) {
     const obj = JSON.parse(e.data);
+
+    if (obj.http == 1) {
+      newSpan.setAttribute('class', 'logged-in');
+      http.textContent = "HTTP Request Status : 200";
+    }
+    else if (obj.http == 0) {
+      newSpan.setAttribute('class', 'logged-out');
+      http.textContent = "HTTP Request Status : 503";
+    }
+    else {
+      newSpan.setAttribute('class', 'waiting');
+      http.textContent = "HTTP Request Status : _";
+    }
+
     var tbodyRef = document.getElementById('thread-table').getElementsByTagName('tbody')[0];
 
     tbodyRef.innerHTML = '';
@@ -420,18 +434,6 @@
        });
     }
 
-    if (e.data.http == 1) {
-      newSpan.setAttribute('class', 'logged-in');
-      http.textContent = "HTTP Request Status : 200";
-    }
-    else if (e.data.http == 0) {
-      newSpan.setAttribute('class', 'logged-out');
-      http.textContent = "HTTP Request Status : 503";
-    }
-    else {
-      newSpan.setAttribute('class', 'waiting');
-      http.textContent = "HTTP Request Status : _";
-    }
   };
 
   evtSource.onerror = function () {
