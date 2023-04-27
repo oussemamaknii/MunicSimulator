@@ -68,7 +68,13 @@ pub async fn notif(json_data: Json<serde_json::Value>) -> rocket::response::stat
     let file_count = fs::read_dir(dir_path)
         .expect("Failed to read directory")
         .filter_map(Result::ok)
-        .filter(|entry| entry.file_name().to_string_lossy().starts_with(prefix))
+        .filter(|entry| {
+            entry.file_name().to_string_lossy().starts_with(prefix)
+                && entry.file_name().to_string_lossy()[entry.file_name().to_string_lossy().len()
+                    - 15
+                    ..entry.file_name().to_string_lossy().len() - 5]
+                    == date
+        })
         .count();
 
     // Construct the file name with the format "trip_%i_%date.json"
@@ -277,8 +283,6 @@ pub async fn notif(json_data: Json<serde_json::Value>) -> rocket::response::stat
             .create(true)
             .open(&file_path)
             .expect("Failed to create file");
-
-        file.write_all(b"[").expect("failed to write to file");
 
         match json_value {
             serde_json::Value::Object(_obj) => {
