@@ -12,32 +12,57 @@
   <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.4.1/css/all.css"
     integrity="sha384-5sAR7xN1Nv6T6+dT2mhtzEpVJvfS3NScPQTrOxhwjIuvcA67KV2R5Jz6kr4abQsz" crossorigin="anonymous">
   <style>
-    #json_file{
-    margin-left: 34%;
+    #doc_text {
+      position:absolute;
+      right: 70%;
+      top: 12%;
     }
+
+    #munic_img {
+      position:absolute;
+      right: 85%;
+      top: -10%;
+    }
+
+    .contentupload{
+    width: fit-content;
+    margin-left: auto;
+    margin-right: auto;
+    margin-bottom: 2%;    
+    }
+
+    .lbl{
+      width: fit-content;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .contentupload p{
+      width: 100%;
+      margin-left: auto;
+      margin-right: auto;
+      
+      }
+
     .radio-toolbar input[type="radio"] {
       display: none;
     }
     
     .radio-toolbar label {
       display: inline-block;
-      background-color: #ddd;
+      background-color: #105b68;
       padding: 4px 11px;
       font-family: Arial;
-      font-size: 16px;
+      font-size: 18px;
       cursor: pointer;
     }
     
     .radio-toolbar input[type="radio"]:checked+label {
-      background-color: #bbb;
+      color: #c2c2c2;
     }
     .radio-toolbar{
       display: flex;      
       justify-content: space-between;
-      margin-right: 20%;
-      margin-left: 20%;
-      margin-top: 6%;
-      margin-bottom: 1%;
     }
     .styled-table {
       border-collapse: collapse;
@@ -93,7 +118,7 @@
 
     .alert {
       border-radius: 12px;
-      width: 700px;
+      width: 800px;
       max-width: 90%;
       padding: 16px 22px 17px 20px;
       display: flex;
@@ -110,6 +135,11 @@
       border-color: rgb(123, 92, 0);
     }
 
+    .alert-info {
+      color: #0c5460;
+      background-color: #105b68;
+      border-color: #042e35;
+  }
     .alert .icon__wrapper {
       height: 34px;
       width: 34px;
@@ -130,16 +160,15 @@
       font-family: Verdana;
       margin-left: 10px;
     }
-
     .alert p a,
     .alert p a:visited,
     .alert p a:active {
-      color: #fff;
+      color: #51c5ff;
     }
 
     #addcustom{
       position: relative;
-      left: 555px;
+      left: 645px;
       margin-top:2%; 
       padding:10px 15px"
     }
@@ -159,7 +188,7 @@
       height: 40px;
       margin-left: 6px;
       margin-right: 2px;
-      width: 120px;
+      width: 150px;
     }
     
     #array {
@@ -169,7 +198,7 @@
     #array label {
       height: 40px;
       margin-left: 6px;
-      width: 130px;
+      width: 150px;
     }
 
     #http-div select {
@@ -181,12 +210,12 @@
       margin-top: 1%;
     }
     #field{
-      width: 700px;
+      width: 800px;
     }
     
     .content {
       display: flex;
-      width: 700px;
+      width: 800px;
       justify-content: space-between;
       margin-top: 1%;
       margin-bottom: 1%;
@@ -226,63 +255,21 @@
       margin-right: 10px;
       color: yellow;
     }
-    :root {
-      --blue: #007bff;
-      --indigo: #6610f2;
-      --purple: #6f42c1;
-      --pink: #e83e8c;
-      --red: #dc3545;
-      --orange: #fd7e14;
-      --yellow: #ffc107;
-      --green: #28a745;
-      --teal: #20c997;
-      --cyan: #17a2b8;
-      --white: #fff;
-      --gray: #6c757d;
-      --gray-dark: #343a40;
-      --primary: #007bff;
-      --secondary: #6c757d;
-      --success: #28a745;
-      --info: #17a2b8;
-      --warning: #ffc107;
-      --danger: #dc3545;
-      --light: #f8f9fa;
-      --dark: #343a40;
-      --breakpoint-xs: 0;
-      --breakpoint-sm: 576px;
-      --breakpoint-md: 768px;
-      --breakpoint-lg: 992px;
-      --breakpoint-xl: 1200px;
-      --font-family-sans-serif: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol";
-      --font-family-monospace: SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
-  }
-
-    :root {
-      --darkreader-neutral-background: #131516;
-      --darkreader-neutral-text: #d8d4cf;
-      --darkreader-selection-background: #004daa;
-      --darkreader-selection-text: #e8e6e3;
-    }
-
-    ::-webkit-scrollbar-thumb {
-      background-color: #454a4d;
-    }
 
     html{
-      background-color: #313131 !important;    
+      background-color: #0b2938 !important;    
       color-scheme: dark !important;
     }
     
     body {
       color: rgba(255, 255, 255, 0.837);
-      background-color: rgb(24, 26, 27);
-      display: flex;
+      background-color: rgb(11, 41, 56);
       justify-content: center;
       font-family: Roboto, Arial, sans-serif;
       font-size: 15px;
     }
 
-    #sim_form {
+    .sim_form {
       border: 5px solid #777777;
     }
 
@@ -303,7 +290,7 @@
     input[type=text],
     input[type=password] {
       width: 100%;
-      width: 700px;
+      width: 800px;
       padding: 16px 8px;
       margin: 8px 0;
       display: inline-block;
@@ -360,12 +347,55 @@
       padding-top: 0;
       padding-right: 15px;
     }
+
+    .boody{
+      display: flex;
+    }
+
+    #navbar {
+      position: relative;
+      display: -webkit-box;
+      display: -ms-flexbox;
+      display: flex;
+      -ms-flex-wrap: wrap;
+      flex-wrap: wrap;
+      -webkit-box-align: center;
+      -ms-flex-align: center;
+      align-items: center;
+      -webkit-box-pack: justify;
+      -ms-flex-pack: justify;
+      padding: 0.5rem 1rem;
+      background-color: #105b68;
+    }
   </style>
 </head>
 
 <body>
-  {# <img src="/public/munic.png" alt="munic.io"> #}
+  <nav id="navbar">
+      <img src="/public/munic.png" class="d-inline-block align-top" alt="Munic.io">
+      
+      <div class="radio-toolbar">
+        <input type="radio" id="radio1" name="radios" value="all" checked>
+        <label for="radio1">Simulate</label>
+      
+        <input type="radio" id="radio2" name="radios" value="false">
+        <label for="radio2">Replay</label>
+
+        <input type="radio" id="radio3" name="radios" value="false">
+        <label for="radio3">Uplaod File</label>
+      </div>
+  </nav>
+    
+  <div class="boody">
   <div style="margin-left:auto;margin-right:auto;">
+
+    <div class="alert alert-info">
+      <div class="icon__wrapper">
+        <span class="mdi mdi-alert-outline"></span>
+      </div>
+      <p >In this <a target="_blank" href="https://store.munic.io/documentations/tracks#toc_1">Documentation</a> you will find how webhooks work, bascically it's what we're simulating here ! Enjoy !</p>
+    </div>
+
   <table class="styled-table" id="thread-table">
     <thead>
         <tr>
@@ -378,29 +408,23 @@
     </tbody>
   </table>
 
-  <form enctype='multipart/form-data' method="post" action="/upload">
-    <div class="formcontainer">
-      <label><strong> Upload a Refrence File (if you haven't already)</strong></label>
+  <form id="form2" enctype='multipart/form-data' method="post" action="/upload">
+    <div class="lbl">
+      <label>
+        <strong> 
+          Upload a Refrence File (if you haven't already)
+        </strong>
+      </label>
+      </div>
       <div class="container">
         <div class="contentupload">
-
           <input type="file" id="json_file" name="json_file" accept="application/json">
-
         </div>
         <button type="submit" class="button" id="upload_button" style="margin-left: 26%;"><strong>Upload !!</strong></button>
-
       </div>
   </form>
 
-  <div class="radio-toolbar">
-    <input type="radio" id="radio1" name="radios" value="all" checked>
-    <label for="radio1">Simulate</label>
-  
-    <input type="radio" id="radio2" name="radios" value="false">
-    <label for="radio2">Replay</label>
-  </div>
-
-  <form id="sim_form"  enctype='multipart/form-data' method="post" action="/simulate">
+  <form id="form1" class="sim_form" enctype='multipart/form-data' method="post" action="/simulate">
     <div class="formcontainer">
       <div class="container">
 
@@ -416,9 +440,9 @@
           <p>You are replaying the exact same trip picked by date and file !! if you want to simulate using real
             Coordinates in real time and customized fields, please enter a valid
             google maps api key !
-            <a href="https://developers.google.com/maps/documentation/javascript/get-api-key?hl=fr">How to cretae
+            <a href="https://developers.google.com/maps/documentation/javascript/get-api-key?hl=fr"  target="_blank"><strong>How to create
               one
-              !</a>
+              !</strong> </a>
           </p>
         </div>
         <label><strong>Google maps API KEY</strong></label><br>
@@ -462,17 +486,20 @@
   </form>
 
 </div>
+</div>
 </body>
 <script src="https://unpkg.com/validator@latest/validator.min.js"></script>
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.3/jquery.min.js"></script>
 <script type="text/javascript">
   var sim_chk = document.getElementById("radio1");
   var rep_chk = document.getElementById("radio2");
+  var upl_chk = document.getElementById("radio3");
   
-  var sim_form = document.getElementById("sim_form");
+  showForm("form1")
 
   sim_chk.addEventListener('change', function() {
     if(sim_chk.checked){
+      showForm("form1")
       button1.innerText = "Simulate !"
       var divsToHide = document.getElementsByClassName("sim_elements");
       for(var i = 0; i < divsToHide.length; i++){
@@ -487,6 +514,7 @@
   
   rep_chk.addEventListener('change', function() {
     if(rep_chk.checked){
+      showForm("form1")
       button1.innerText = "Replay !"
       var divsToHide = document.getElementsByClassName("sim_elements");
       for(var i = 0; i < divsToHide.length; i++){
@@ -498,6 +526,25 @@
     }
     }
   });
+
+  upl_chk.addEventListener('change', function() {
+    if(upl_chk.checked){
+      showForm("form2")
+    }
+  });
+
+  function showForm(formId) {
+    // Hide all forms
+    var forms = document.getElementsByTagName("form");
+    for (var i = 0; i < forms.length; i++) {
+      forms[i].style.display = "none";
+    }
+  
+    // Show the selected form
+    var selectedForm = document.getElementById(formId);
+    selectedForm.style.display = "block";
+  }
+  
   var addcustom = document.getElementById("addcustom")
 
   var index = 0
@@ -535,6 +582,7 @@
     option3.value = "string"
     select.append(option0,option1,option2,option3)
 
+    var li_div = document.createElement("div")
 
     select.addEventListener("change",function(e){
       switch (e.target.value){
@@ -653,10 +701,31 @@
                   divselects.childNodes[4].remove()
                 }
                 var labelS = document.createElement("label")
-                labelS.innerText = "Type your Strings separated by a \"/\""
+                labelS.innerText = "Type your Strings (Ctrl+ENTER to add)"
                 var string = document.createElement("input")
                 string.placeholder = "Type a String"
-                string.name = "string"
+                var nbe_strings = 0;
+                var ul = document.createElement("ul")
+                li_div.append(ul)
+                string.addEventListener('keyup', function(e) {
+                    if (e.key === 'Enter' || e.keyCode === 13) {
+                    console.log("hi")
+                    // Prevent the default action of submitting the form
+                    e.preventDefault();
+                    if(string.value != ""){
+                      var imput = document.createElement("input")
+                      imput.name = "string" + nbe_strings
+                      imput.hidden = true
+                      imput.value = string.value
+                      var li = document.createElement("li")
+                      li.innerText = string.value
+                      ul.append(li)
+                      string.value = ""
+                      nbe_strings += 1
+                      li_div.append(imput)
+                    }
+                  }
+                })
                 var divv = document.createElement("div")
                 divv.setAttribute("id","array")
                 divv.append(labelS,string)
@@ -681,7 +750,8 @@
 
     var deleteB = document.createElement("button")
     deleteB.setAttribute("class","btn btn-danger")
-    deleteB.addEventListener("click",function(){
+    deleteB.addEventListener("click",function(e){
+      e.preventDefault();
       div.remove()
     })
     deleteB.innerText = "Delete"
@@ -689,7 +759,7 @@
     var br1 = document.createElement("br")
     var br2 = document.createElement("br")
 
-    div.append(label,br1,input,divselects,labelP,br2,inputP,deleteB)
+    div.append(label,br1,input,divselects,li_div,labelP,br2,inputP,deleteB)
     fieldDiv.appendChild(div)
     index += 1
     document.getElementById("fields_size").value = index
@@ -739,10 +809,11 @@
   const evtSource = new EventSource("/events");
   var table = document.getElementById("thread-table");
   table.style.display = "none";
+  
   var replayslct = document.getElementsByClassName("replayslct");
-    for(var i = 0; i < replayslct.length; i++){
-        replayslct[i].style.display = "none";
-    }
+  for(var i = 0; i < replayslct.length; i++){
+      replayslct[i].style.display = "none";
+  }
 
   var tf_select = document.getElementById("tf_select");
   var t_select = document.getElementById("t_select");
