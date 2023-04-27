@@ -136,6 +136,9 @@ pub struct Fields {
     pub mdi_ext_batt_present: Option<Base64>,
 
     #[serde(skip_serializing_if = "ShouldSkip::should_skip")]
+    pub mdi_journey_state: Option<Base64>,
+
+    #[serde(skip_serializing_if = "ShouldSkip::should_skip")]
     pub odo_partial_km: Option<Base64>,
 
     #[serde(skip_serializing_if = "ShouldSkip::should_skip")]
@@ -452,6 +455,11 @@ impl From<&Document> for Fields {
     fn from(doc: &Document) -> Fields {
         let field = Fields {
             gprmc_valid: Some(Base64::from(match doc.get_document("GPRMC_VALID") {
+                Ok(e) => Some(e),
+                Err(_e) => None,
+            })),
+
+            mdi_journey_state: Some(Base64::from(match doc.get_document("MDI_JOURNEY_STATE") {
                 Ok(e) => Some(e),
                 Err(_e) => None,
             })),

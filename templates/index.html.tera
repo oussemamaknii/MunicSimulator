@@ -1,26 +1,57 @@
-<!DOCTYPE html>
-<html>
+<!DOCTYPE html >
+<html lang="en">
 <title>Munic Simulator</title>
 
 <head>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.0.0/dist/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+  <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/popper.js@1.12.9/dist/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.0.0/dist/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
   <link href="https://cdn.materialdesignicons.com/5.4.55/css/materialdesignicons.min.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700" rel="stylesheet">
   <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.4.1/css/all.css"
     integrity="sha384-5sAR7xN1Nv6T6+dT2mhtzEpVJvfS3NScPQTrOxhwjIuvcA67KV2R5Jz6kr4abQsz" crossorigin="anonymous">
   <style>
+    #json_file{
+    margin-left: 34%;
+    }
+    .radio-toolbar input[type="radio"] {
+      display: none;
+    }
+    
+    .radio-toolbar label {
+      display: inline-block;
+      background-color: #ddd;
+      padding: 4px 11px;
+      font-family: Arial;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    
+    .radio-toolbar input[type="radio"]:checked+label {
+      background-color: #bbb;
+    }
+    .radio-toolbar{
+      display: flex;      
+      justify-content: space-between;
+      margin-right: 20%;
+      margin-left: 20%;
+      margin-top: 6%;
+      margin-bottom: 1%;
+    }
     .styled-table {
       border-collapse: collapse;
-      margin: 25px 0;
-      
-  margin-left: auto;
-  margin-right: auto;
+      margin-bottom: 3%;
+      margin-top: 3%;
       font-size: 0.9em;
+      width:fit-content;
+      margin-left: auto;
+      margin-right: auto;
       font-family: sans-serif;
-      min-width: 400px;
       box-shadow: 0 0 20px rgba(0, 0, 0, 0.15);
   }
   .styled-table thead tr {
-    background-color: #4286f4;
+    background-color: rgb(9, 68, 162);
     color: #ffffff;
     text-align: left;
 }
@@ -43,6 +74,7 @@
 .styled-table tbody tr:last-of-type {
   border-bottom: 2px solid #4286f4;
 }
+
     .label-file {
       cursor: pointer;
       color: #00b1ca;
@@ -73,7 +105,9 @@
     }
 
     .alert-warning {
-      background: #f2a600;
+      background: #f2a500c8;
+      color: rgb(251, 215, 112);
+      border-color: rgb(123, 92, 0);
     }
 
     .alert .icon__wrapper {
@@ -103,10 +137,60 @@
       color: #fff;
     }
 
+    #addcustom{
+      position: relative;
+      left: 555px;
+      margin-top:2%; 
+      padding:10px 15px"
+    }
+
+    #field button{
+      margin-left: 90%;
+      margin-top: 2%;
+    }
+
+    #nums input {
+      height: 40px;
+      margin-left: 6px;
+      margin-right: 2px;
+      width: 80px;
+    }
+    #array input {
+      height: 40px;
+      margin-left: 6px;
+      margin-right: 2px;
+      width: 120px;
+    }
+    
+    #array {
+      display: flex;
+    }
+
+    #array label {
+      height: 40px;
+      margin-left: 6px;
+      width: 130px;
+    }
+
+    #http-div select {
+      height: 40px;
+      border-radius: 4px;
+      width: 130px;
+    }
+    #http-div label {
+      margin-top: 1%;
+    }
+    #field{
+      width: 700px;
+    }
+    
     .content {
       display: flex;
+      width: 700px;
       justify-content: space-between;
-      margin: 1em auto;
+      margin-top: 1%;
+      margin-bottom: 1%;
+      margin-right: 6%;
       padding: 1px 0;
     }
 
@@ -142,17 +226,69 @@
       margin-right: 10px;
       color: yellow;
     }
+    :root {
+      --blue: #007bff;
+      --indigo: #6610f2;
+      --purple: #6f42c1;
+      --pink: #e83e8c;
+      --red: #dc3545;
+      --orange: #fd7e14;
+      --yellow: #ffc107;
+      --green: #28a745;
+      --teal: #20c997;
+      --cyan: #17a2b8;
+      --white: #fff;
+      --gray: #6c757d;
+      --gray-dark: #343a40;
+      --primary: #007bff;
+      --secondary: #6c757d;
+      --success: #28a745;
+      --info: #17a2b8;
+      --warning: #ffc107;
+      --danger: #dc3545;
+      --light: #f8f9fa;
+      --dark: #343a40;
+      --breakpoint-xs: 0;
+      --breakpoint-sm: 576px;
+      --breakpoint-md: 768px;
+      --breakpoint-lg: 992px;
+      --breakpoint-xl: 1200px;
+      --font-family-sans-serif: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol";
+      --font-family-monospace: SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
+  }
 
-    html,
+    :root {
+      --darkreader-neutral-background: #131516;
+      --darkreader-neutral-text: #d8d4cf;
+      --darkreader-selection-background: #004daa;
+      --darkreader-selection-text: #e8e6e3;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background-color: #454a4d;
+    }
+
+    html{
+      background-color: #313131 !important;    
+      color-scheme: dark !important;
+    }
+    
     body {
+      color: rgba(255, 255, 255, 0.837);
+      background-color: rgb(24, 26, 27);
       display: flex;
       justify-content: center;
       font-family: Roboto, Arial, sans-serif;
       font-size: 15px;
     }
 
-    #cord_form {
-      border: 5px solid #f1f1f1;
+    #sim_form {
+      border: 5px solid #777777;
+    }
+
+    #sl {
+      border: 5px solid #777777;
+      margin-bottom: 2%;
     }
 
     .slct {
@@ -167,10 +303,11 @@
     input[type=text],
     input[type=password] {
       width: 100%;
+      width: 700px;
       padding: 16px 8px;
       margin: 8px 0;
       display: inline-block;
-      border: 1px solid #ccc;
+      border: 1px solid #cccccc00;
       box-sizing: border-box;
     }
 
@@ -182,7 +319,7 @@
     }
 
     .button {
-      background-color: #4286f4;
+      background-color: rgb(9, 68, 162);
       color: white;
       padding: 14px 0;
       margin: 10px 0;
@@ -192,7 +329,7 @@
     }
 
     #btn {
-      background-color: #4286f4;
+      background-color: rgb(9, 68, 162);
       color: white;
       padding: 10px 10px;
       border: none;
@@ -224,12 +361,10 @@
       padding-right: 15px;
     }
   </style>
-  <script type="text/javascript">
-  </script>
 </head>
 
 <body>
-
+  {# <img src="/public/munic.png" alt="munic.io"> #}
   <div style="margin-left:auto;margin-right:auto;">
   <table class="styled-table" id="thread-table">
     <thead>
@@ -245,30 +380,34 @@
 
   <form enctype='multipart/form-data' method="post" action="/upload">
     <div class="formcontainer">
+      <label><strong> Upload a Refrence File (if you haven't already)</strong></label>
       <div class="container">
-        <div class="content">
-          <label for="track_json_file" class="label-file"><strong>Upload a Track json file</strong></label>
+        <div class="contentupload">
 
-          <input type="file" id="track_json_file" class="input-file" name="track_json_file" accept="application/json">
+          <input type="file" id="json_file" name="json_file" accept="application/json">
 
-          <label for="presence_json_file" class="label-file"><strong>Upload a Presence json file</strong></label>
-
-          <input type="file" id="presence_json_file" class="input-file" name="presence_json_file"
-            accept="application/json">
         </div>
         <button type="submit" class="button" id="upload_button" style="margin-left: 26%;"><strong>Upload !!</strong></button>
 
       </div>
   </form>
 
-  <form id="cord_form" enctype='multipart/form-data' method="post" action="/simulate">
+  <div class="radio-toolbar">
+    <input type="radio" id="radio1" name="radios" value="all" checked>
+    <label for="radio1">Simulate</label>
+  
+    <input type="radio" id="radio2" name="radios" value="false">
+    <label for="radio2">Replay</label>
+  </div>
+
+  <form id="sim_form"  enctype='multipart/form-data' method="post" action="/simulate">
     <div class="formcontainer">
       <div class="container">
 
-        <label><strong>Your URL :</strong></label>
+        <label><strong>Your URL :</strong></label><br>
         <input name="url" id="url" type="text" placeholder="Enter your Notification URL">
         <p>{{ msg }}</p>
-
+        <div class="sim_elements">
         <h1>Coordinates</h1>
         <div class="alert alert-warning">
           <div class="icon__wrapper">
@@ -282,38 +421,20 @@
               !</a>
           </p>
         </div>
-        <label><strong>Google maps API KEY</strong></label>
-        <input name="key" id="key" type="password" placeholder="Enter your GM API KEY">
-        <div class="alert alert-warning" id="alert-container">
-          <div class="icon__wrapper">
-            <span class="mdi mdi-alert-outline"></span>
-          </div>
-          <p>By doing a real-time simulation you may run out of fields data, because it
-            depends on the refrence track files we are using ... (Work in progress) !!
-          </p>
-        </div>
-        <label><strong>Source</strong></label>
-        <input name="lat" id="lat" type="text" placeholder="Enter Source Location">
-        <label><strong>Destination</strong></label>
+        <label><strong>Google maps API KEY</strong></label><br>
+        <input name="key" id="key" type="password" placeholder="Enter your GM API KEY"><br>
+        <label><strong>Departure</strong></label><br>
+        <input name="lat" id="lat" type="text" placeholder="Enter Source Location"><br>
+        <label><strong>Destination</strong></label><br>
         <input name="lon" id="lon" type="text" placeholder="Enter Destination Location">
-
+      </div>
+      <div class="replayslct">
         <div id="http-div" class="content">
           <label><strong>Choose a track file </strong></label>
           <div class="select">
             <select name="track_file" id="tf_select">
-              <option id="slct" value="">--Choose a file--</option>
+              <option id="slct" value="">Choose a file</option>
               {% for file, data in track_dates | group_by(attribute="_id.file") %}
-              {% if file %}
-              <option id="slct" value="{{file}}"> {{file}}</option>
-              {% endif %}
-              {% endfor %}
-            </select>
-          </div>
-          <label><strong>Choose a presence file </strong></label>
-          <div class="select">
-            <select name="presence_file" id="pf_select">
-              <option id="slct" value="">--Choose a file--</option>
-              {% for file, data in presence_dates | group_by(attribute="_id.file") %}
               {% if file %}
               <option id="slct" value="{{file}}"> {{file}}</option>
               {% endif %}
@@ -328,23 +449,282 @@
             <select name="track_option" id="t_select">
             </select>
           </div>
-          <label><strong>Choose a presence date </strong></label>
-          <div class="select">
-            <select name="presence_option" id="p_select">
-            </select>
-          </div>
         </div>
       </div>
+      <button type="button" id="addcustom"  class="btn btn-dark"><strong>Add Custom Field</strong></button>
+      <div id="custom-fields">
+
+      </div>
+      </div>
+
+      <input type="hidden" id="fields_size" name="fields_size">
       <button type="submit" class="button" id="button"><strong>Simulate !!</strong></button>
   </form>
+
 </div>
 </body>
 <script src="https://unpkg.com/validator@latest/validator.min.js"></script>
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.3/jquery.min.js"></script>
 <script type="text/javascript">
+  var sim_chk = document.getElementById("radio1");
+  var rep_chk = document.getElementById("radio2");
+  
+  var sim_form = document.getElementById("sim_form");
+
+  sim_chk.addEventListener('change', function() {
+    if(sim_chk.checked){
+      button1.innerText = "Simulate !"
+      var divsToHide = document.getElementsByClassName("sim_elements");
+      for(var i = 0; i < divsToHide.length; i++){
+          divsToHide[i].style.display = "block";
+      }
+      var replayslct = document.getElementsByClassName("replayslct");
+      for(var i = 0; i < replayslct.length; i++){
+        replayslct[i].style.display = "none";
+      }
+  }
+  });
+  
+  rep_chk.addEventListener('change', function() {
+    if(rep_chk.checked){
+      button1.innerText = "Replay !"
+      var divsToHide = document.getElementsByClassName("sim_elements");
+      for(var i = 0; i < divsToHide.length; i++){
+          divsToHide[i].style.display = "none";
+      }
+      var replayslct = document.getElementsByClassName("replayslct");
+    for(var i = 0; i < replayslct.length; i++){
+        replayslct[i].style.display = "block";
+    }
+    }
+  });
+  var addcustom = document.getElementById("addcustom")
+
+  var index = 0
+
+  addcustom.addEventListener('click',function() {
+    var fieldDiv = document.getElementById("custom-fields")
+    var div = document.createElement("div")
+    div.setAttribute("id","field")
+    var label = document.createElement("label")
+    label.innerText = "Field Name"
+    var input = document.createElement("input")
+    input.placeholder = "EnterField Name"
+    input.type ="text"
+    input.name = "field_name"
+
+    var divselects = document.createElement("div")
+    divselects.setAttribute("id","http-div")
+    divselects.setAttribute("class","content")
+
+    var labelT = document.createElement("label")
+    labelT.innerText = "Select a Type"
+    var select = document.createElement("select")
+    
+    var option0 = document.createElement("option")
+    var option1 = document.createElement("option")
+    var option2 = document.createElement("option")
+    var option3 = document.createElement("option")
+    option0.textContent = "Choose a type"
+    option0.value = ""
+    option1.textContent = "Boolean"
+    option1.value = "bool"
+    option2.textContent = "Integer"
+    option2.value = "int"
+    option3.textContent = "String"
+    option3.value = "string"
+    select.append(option0,option1,option2,option3)
+
+
+    select.addEventListener("change",function(e){
+      switch (e.target.value){
+        case "":
+          if( divselects.childNodes[3]) {
+            if( divselects.childNodes[4]) {
+              divselects.childNodes[4].remove()
+            }
+            divselects.childNodes[3].remove()
+            divselects.childNodes[2].remove()
+          }
+          break;
+        case "bool":
+          if( divselects.childNodes[3]) {
+            if( divselects.childNodes[4]) {
+              divselects.childNodes[4].remove()
+            }
+            divselects.childNodes[3].remove()
+            divselects.childNodes[2].remove()
+          }
+          var labelV = document.createElement("label")
+          labelV.innerText = "Select a Value"
+          var select2 = document.createElement("select")
+
+          var opt0 = document.createElement("option")
+          var opt1 = document.createElement("option")
+          var opt2 = document.createElement("option")
+          opt0.textContent = "Choose a value"
+          opt0.value = ""
+          opt1.textContent = "True"
+          opt1.value = "true"
+          opt2.textContent = "False"
+          opt2.value = "false"
+          select2.append(opt0,opt1,opt2)
+          divselects.append(labelV,select2)
+          break;
+        case "int":
+          if( divselects.childNodes[3]) {
+            if( divselects.childNodes[4]) {
+              divselects.childNodes[4].remove()
+            }
+            divselects.childNodes[3].remove()
+            divselects.childNodes[2].remove()
+          }
+          var labelV = document.createElement("label")
+          labelV.innerText = "Type Values"
+          var divv = document.createElement("div")
+          divv.setAttribute("id","nums")
+          var input1 = document.createElement("input")
+          var input2 = document.createElement("input")
+          var input3 = document.createElement("input")
+          input1.placeholder = "Min"
+          input2.placeholder = "Max"
+          input3.placeholder = "Deviation"
+          input1.name = "min"
+          input2.name = "max"
+          input3.name = "deviation"
+          divv.append(input1,input2,input3)
+          divselects.append(labelV,divv)
+          setInputFilter(input1, function(value) {
+            return /^-?\d*$/.test(value); }, "Must be an integer");
+          setInputFilter(input2, function(value) {
+            return /^-?\d*$/.test(value); }, "Must be an integer");
+          setInputFilter(input3, function(value) {
+            return /^-?\d*$/.test(value); }, "Must be an integer");
+          break;
+        case "string" :
+          if( divselects.childNodes[3]) {
+            if( divselects.childNodes[4]) {
+              divselects.childNodes[4].remove()
+            }
+            divselects.childNodes[3].remove()
+            divselects.childNodes[2].remove()
+          }
+
+          var labelV = document.createElement("label")
+          labelV.innerText = "Select a Value"
+          var select2 = document.createElement("select")
+
+          var opt0 = document.createElement("option")
+          var opt1 = document.createElement("option")
+          var opt2 = document.createElement("option")
+          opt0.textContent = "Choose a value"
+          opt0.value = ""
+          opt1.textContent = "Random value / Fixed size"
+          opt1.value = "random"
+          opt2.textContent = "Predefined Values"
+          opt2.value = "array"
+          select2.append(opt0,opt1,opt2)
+
+          select2.addEventListener("change",function(e){
+            switch(e.target.value){
+              case "":
+                if( divselects.childNodes[4]) {
+                  divselects.childNodes[4].remove()
+                }
+                break;
+              case "random":
+                if( divselects.childNodes[4]) {
+                  divselects.childNodes[4].remove()
+                }
+                var labelS = document.createElement("label")
+                labelS.innerText = "Select a Size"
+                var size = document.createElement("input")
+                size.placeholder = "Type a size"
+                size.name = "size"
+                setInputFilter(size, function(value) {
+                  return /^\d*$/.test(value) && (value === "" || parseInt(value) <= 10); }, "Must be between 0 and 10");
+                var divv = document.createElement("div")
+                divv.setAttribute("id","nums")
+                divv.append(labelS,size)
+                divselects.append(divv)
+                break;
+              case "array":
+                if( divselects.childNodes[4]) {
+                  divselects.childNodes[4].remove()
+                }
+                var labelS = document.createElement("label")
+                labelS.innerText = "Type your Strings separated by a \"/\""
+                var string = document.createElement("input")
+                string.placeholder = "Type a String"
+                string.name = "string"
+                var divv = document.createElement("div")
+                divv.setAttribute("id","array")
+                divv.append(labelS,string)
+                divselects.append(divv)
+                break;       
+            }
+          })
+
+          divselects.append(labelV,select2)
+
+          break;
+      }
+    })
+
+    divselects.append(labelT,select)
+    
+    var labelP = document.createElement("label")
+    labelP.innerText = "Cyclic Time Period in seconds (Simulate every {?})"
+    var inputP = document.createElement("input")
+    inputP.placeholder = "Enter Time Period (seconds)"
+    inputP.type ="text"
+
+    var deleteB = document.createElement("button")
+    deleteB.setAttribute("class","btn btn-danger")
+    deleteB.addEventListener("click",function(){
+      div.remove()
+    })
+    deleteB.innerText = "Delete"
+
+    var br1 = document.createElement("br")
+    var br2 = document.createElement("br")
+
+    div.append(label,br1,input,divselects,labelP,br2,inputP,deleteB)
+    fieldDiv.appendChild(div)
+    index += 1
+    document.getElementById("fields_size").value = index
+  })
+
+  function setInputFilter(textbox, inputFilter, errMsg) {
+    ["input", "keydown", "keyup", "mousedown", "mouseup", "select", "contextmenu", "drop", "focusout"].forEach(function(event) {
+      textbox.addEventListener(event, function(e) {
+        if (inputFilter(this.value)) {
+          // Accepted value
+          if (["keydown","mousedown","focusout"].indexOf(e.type) >= 0){
+            this.classList.remove("input-error");
+            this.setCustomValidity("");
+          }
+          this.oldValue = this.value;
+          this.oldSelectionStart = this.selectionStart;
+          this.oldSelectionEnd = this.selectionEnd;
+        } else if (this.hasOwnProperty("oldValue")) {
+          this.classList.add("input-error");
+          this.setCustomValidity(errMsg);
+          this.reportValidity();
+          this.value = this.oldValue;
+          this.setSelectionRange(this.oldSelectionStart, this.oldSelectionEnd);
+        } else {
+          this.value = "";
+        }
+      });
+    });
+  }
+  
+</script>
+  
+<script type="text/javascript">
   const url = document.getElementById("url");
-  const presence_json_file = document.getElementById("presence_json_file");
-  const track_json_file = document.getElementById("track_json_file");
+  const json_file = document.getElementById("json_file");
   const button1 = document.getElementById("button");
   const upload_button = document.getElementById("upload_button");
   const http = document.getElementById("http");
@@ -357,11 +737,15 @@
   button1.disabled = true;
   upload_button.disabled = true;
   const evtSource = new EventSource("/events");
+  var table = document.getElementById("thread-table");
+  table.style.display = "none";
+  var replayslct = document.getElementsByClassName("replayslct");
+    for(var i = 0; i < replayslct.length; i++){
+        replayslct[i].style.display = "none";
+    }
 
   var tf_select = document.getElementById("tf_select");
-  var pf_select = document.getElementById("pf_select");
   var t_select = document.getElementById("t_select");
-  var p_select = document.getElementById("p_select");
 
   evtSource.onopen = function () {
     console.log("Connection to server opened.");
@@ -369,6 +753,12 @@
 
   evtSource.onmessage = function (e) {
     const obj = JSON.parse(e.data);
+
+    if(table.rows.length == 1){
+      table.style.display = "none";
+    }else{
+      table.style.display = "block";
+    }
 
     var tbodyRef = document.getElementById('thread-table').getElementsByTagName('tbody')[0];
 
@@ -461,15 +851,7 @@
     }
   });
 
-  track_json_file.addEventListener("change", (event) => {
-    if (event.target.files[0]) {
-      upload_button.disabled = false;
-    } else {
-      upload_button.disabled = true;
-    }
-  });
-
-  presence_json_file.addEventListener("change", (event) => {
+  json_file.addEventListener("change", (event) => {
     if (event.target.files[0]) {
       upload_button.disabled = false;
     } else {
@@ -490,26 +872,7 @@
         t_select.appendChild(new_option);
       }
     };
-    if (tf_select.value == "" && pf_select.value != null && validator.isURL(url.value)) {
-      button1.disabled = true;
-    } else
-      button1.disabled = false;
-  });
-
-  pf_select.addEventListener("change", (event) => {
-    removeOptions(p_select);
-    for (var i = 0; i < pdata.length; i++) {
-      if (pdata[i]._id.file == event.target.value) {
-        var new_option = document.createElement("option");
-        new_option.text = `${pdata[i]._id.year}-${pdata[i]._id.month}-${pdata[i]._id.day}`;
-        new_option.value = `${pdata[i]._id.year}-${pdata[i]._id.month}-${pdata[i]._id.day}`;
-        p_select.appendChild(new_option);
-      }
-    };
-    if (tf_select.value == "" && pf_select.value != null && validator.isURL(url.value)) {
-      button1.disabled = true;
-    } else
-      button1.disabled = false;
+    button1.disabled = ((tf_select.value == "") || (url.value == ""))
   });
 
   function removeOptions(selectElement) {
@@ -518,9 +881,9 @@
       selectElement.remove(i);
     }
   }
-
+  
   url.addEventListener("input", (event) => {
-    button1.disabled = ((tf_select.value == "") && (pf_select.value == "") && (validator.isURL(event.target.value)));
+    button1.disabled = !((tf_select.value != "") && (validator.isURL(event.target.value)))
   });
 </script>
 

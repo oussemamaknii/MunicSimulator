@@ -1,5 +1,5 @@
 extern crate rocket;
-use rocket::{launch, routes};
+use rocket::{fs::FileServer, launch, routes};
 use rocket_dyn_templates::Template;
 pub mod models;
 mod services;
@@ -8,14 +8,19 @@ mod services;
 fn rocket() -> _ {
     rocket::build()
         .mount(
+            "/public",
+            FileServer::from("C:/Users/makni_o/Documents/MunicSimulator/static"),
+        )
+        .mount(
             "/",
             routes![
                 services::simulate,
                 services::index,
                 services::indexx,
                 services::upload,
+                services::notif,
                 services::stream,
-                services::abort
+                services::abort_thread
             ],
         )
         .attach(Template::fairing())

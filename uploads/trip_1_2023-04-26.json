@@ -1,0 +1,74 @@
+[
+    {
+        "meta": {
+            "account": "municio",
+            "event": "presence"
+        },
+        "payload": {
+            "id": 1734536824417681770,
+            "id_str": "1734536824417681770",
+            "type": "connect",
+            "connection_id": 1734536824409293156,
+            "cs": "binaryserver-7ddc9b6675-mg5gd_4200",
+            "ip": "192.168.0.226",
+            "protocol": "{mdi21,[con_reason,sbv,session]}",
+            "reason": "cold_boot",
+            "asset": "863593050510874",
+            "time": "2023-02-08T09:50:05.000+00:00"
+        }
+    },
+    {
+        "meta": {
+            "account": "municio",
+            "event": "presence"
+        },
+        "payload": {
+            "id": 1734536824417681770,
+            "id_str": "1734536824417681770",
+            "type": "connect",
+            "connection_id": 1734536824409293156,
+            "cs": "binaryserver-7ddc9b6675-mg5gd_4200",
+            "ip": "192.168.0.226",
+            "protocol": "{mdi21,[con_reason,sbv,session]}",
+            "reason": "cold_boot",
+            "asset": "863593050510874",
+            "time": "2023-02-08T09:50:05.000+00:00"
+        }
+    },
+    {
+        "meta": {
+            "account": "municio",
+            "event": "presence"
+        },
+        "payload": {
+            "id": 1734536824417681770,
+            "id_str": "1734536824417681770",
+            "type": "connect",
+            "connection_id": 1734536824409293156,
+            "cs": "binaryserver-7ddc9b6675-mg5gd_4200",
+            "ip": "192.168.0.226",
+            "protocol": "{mdi21,[con_reason,sbv,session]}",
+            "reason": "cold_boot",
+            "asset": "863593050510874",
+            "time": "2023-02-08T09:50:05.000+00:00"
+        }
+    },
+    {
+        "meta": {
+            "account": "municio",
+            "event": "presence"
+        },
+        "payload": {
+            "id": 1734536824417681770,
+            "id_str": "1734536824417681770",
+            "type": "disconnect",
+            "connection_id": 1734536824409293156,
+            "cs": "binaryserver-7ddc9b6675-mg5gd_4200",
+            "ip": "192.168.0.226",
+            "protocol": "{mdi21,[con_reason,sbv,session]}",
+            "reason": "cold_boot",
+            "asset": "863593050510874",
+            "time": "2023-02-08T09:50:05.000+00:00"
+        }
+    }
+]
