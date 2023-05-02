@@ -20,6 +20,7 @@ fn rocket() -> _ {
                 services::upload,
                 services::notif,
                 services::stream,
+                services::record,
                 services::abort_thread
             ],
         )

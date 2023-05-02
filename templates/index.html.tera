@@ -425,6 +425,13 @@
     .dropdown:hover .dropdown-content {
       display: block;
     }
+
+    .btn-nav {
+      position: relative;
+      color: white;
+      left: 60%;
+      background-color: rgba(220, 53, 70, 0.432);
+    }
   </style>
 </head>
 
@@ -452,6 +459,20 @@
       <input type="radio" id="radio4" name="radios" value="false">
       <label for="radio4">Uplaod File</label>
 
+    </div>
+    <div class="btn-nav">
+      <button id="record-btn" type="button" class="btn btn-outline-danger">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-record-btn"
+          viewBox="0 0 16 16">
+          <path d="M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"></path>
+          <path
+            d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V4zm15 0a1 1 0 0 0-1-1H2a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V4z">
+          </path>
+        </svg>
+        <span>
+          Record Trips
+        </span>
+      </button>
     </div>
   </nav>
 
@@ -962,6 +983,24 @@
   var t_select = document.getElementById("t_select");
   var pf_select = document.getElementById("pf_select");
   var p_select = document.getElementById("p_select");
+  var recordbtn = document.getElementById("record-btn");
+  const buttonText = recordbtn.querySelector("span");
+
+  var chosen_json_file = document.getElementById("chosen_json_file");
+
+  recordbtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    $.ajax({
+      type: "POST",
+      url: "/record",
+      success: function (result) {
+        console.log("success")
+      },
+      error: function (result) {
+        console.log("error")
+      }
+    });
+  });
 
   evtSource.onopen = function () {
     console.log("Connection to server opened.");
@@ -969,6 +1008,14 @@
 
   evtSource.onmessage = function (e) {
     const obj = JSON.parse(e.data);
+
+    console.log(obj.record)
+
+    if (obj.record == 1) {
+      buttonText.textContent = "Stop Recording"
+    } else {
+      buttonText.textContent = "Record Trips"
+    }
 
     if (table.rows.length == 1) {
       table.style.display = "none";
@@ -980,7 +1027,7 @@
 
     tbodyRef.innerHTML = '';
 
-    for (const [key, value] of Object.entries(obj)) {
+    for (const [key, value] of Object.entries(obj.threads)) {
 
       var newRow = tbodyRef.insertRow();
       newRow.setAttribute("id", "row" + key);
@@ -1088,7 +1135,7 @@
         t_select.appendChild(new_option);
       }
     };
-    button1.disabled = ((pf_select.value == "") || (tf_select.value == "") || (url.value == ""))
+    button1.disabled = ((pf_select.value == "") || (tf_select.value == "") || (url.value == "")) && ((chosen_json_file.value == "") || (url.value == ""))
   });
   pf_select.addEventListener("change", (event) => {
     removeOptions(p_select);
@@ -1100,7 +1147,11 @@
         p_select.appendChild(new_option);
       }
     };
-    button1.disabled = ((pf_select.value == "") || (tf_select.value == "") || (url.value == ""))
+    button1.disabled = ((pf_select.value == "") || (tf_select.value == "") || (url.value == "")) && ((chosen_json_file.value == "") || (url.value == ""))
+  });
+
+  chosen_json_file.addEventListener("change", (event) => {
+    button1.disabled = ((pf_select.value == "") || (tf_select.value == "") || (url.value == "")) && ((chosen_json_file.value == "") || (url.value == ""))
   });
 
   function removeOptions(selectElement) {
@@ -1111,7 +1162,7 @@
   }
 
   url.addEventListener("input", (event) => {
-    button1.disabled = !((tf_select.value != "") && (pf_select.value != "") && (validator.isURL(event.target.value)))
+    button1.disabled = !((tf_select.value != "") && (pf_select.value != "") && (validator.isURL(event.target.value))) && !((validator.isURL(event.target.value)) && (chosen_json_file.value != ""))
   });
 </script>
 

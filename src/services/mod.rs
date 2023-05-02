@@ -57,57 +57,283 @@ static INDEX: AtomicUsize = AtomicUsize::new(0);
 
 static START: AtomicUsize = AtomicUsize::new(0);
 
+static RECORD: AtomicUsize = AtomicUsize::new(0);
+
+#[post("/record")]
+pub fn record() {
+    if RECORD.load(Ordering::Relaxed) == 0 {
+        RECORD.store(1, Ordering::Relaxed);
+    } else {
+        RECORD.store(0, Ordering::Relaxed);
+    }
+}
 #[post("/", format = "json", data = "<json_data>")]
 pub async fn notif(json_data: Json<serde_json::Value>) -> rocket::response::status::Custom<String> {
-    use std::fs::{self};
-    use std::io::prelude::*;
-    use std::path::{Path, PathBuf};
-    dotenv().ok();
+    if RECORD.load(Ordering::Relaxed) == 1 {
+        use std::fs::{self};
+        use std::io::prelude::*;
+        use std::path::{Path, PathBuf};
+        dotenv().ok();
 
-    let paaath = format!("{}{}", env::var("DIR").unwrap(), "uploads\\");
-    let json_value = json_data.into_inner();
+        let paaath = format!("{}{}", env::var("DIR").unwrap(), "uploads\\");
+        let json_value = json_data.into_inner();
 
-    let dir_path = Path::new(&paaath);
-    let prefix = "trip_";
-    let date = chrono::Local::now().format("%Y-%m-%d").to_string();
-    let file_extension = ".json";
+        let dir_path = Path::new(&paaath);
+        let prefix = "trip_";
+        let date = chrono::Local::now().format("%Y-%m-%d").to_string();
+        let file_extension = ".json";
 
-    // Count the number of files in the directory with the "trip_" prefix
-    let file_count = fs::read_dir(dir_path)
-        .expect("Failed to read directory")
-        .filter_map(Result::ok)
-        .filter(|entry| {
-            entry.file_name().to_string_lossy().starts_with(prefix)
-                && entry.file_name().to_string_lossy()[entry.file_name().to_string_lossy().len()
-                    - 15
-                    ..entry.file_name().to_string_lossy().len() - 5]
-                    == date
-        })
-        .count();
+        // Count the number of files in the directory with the "trip_" prefix
+        let file_count = fs::read_dir(dir_path)
+            .expect("Failed to read directory")
+            .filter_map(Result::ok)
+            .filter(|entry| {
+                entry.file_name().to_string_lossy().starts_with(prefix)
+                    && entry.file_name().to_string_lossy()[entry.file_name().to_string_lossy().len()
+                        - 15
+                        ..entry.file_name().to_string_lossy().len() - 5]
+                        == date
+            })
+            .count();
 
-    // Construct the file name with the format "trip_%i_%date.json"
-    let file_name: String;
-    if file_count == 0 {
-        file_name = format!("{}{}_{}{}", prefix, file_count + 1, date, file_extension);
-    } else {
-        file_name = format!("{}{}_{}{}", prefix, file_count, date, file_extension);
-    }
-    let file_path = PathBuf::from(dir_path).join(file_name);
+        // Construct the file name with the format "trip_%i_%date.json"
+        let file_name: String;
+        if file_count == 0 {
+            file_name = format!("{}{}_{}{}", prefix, file_count + 1, date, file_extension);
+        } else {
+            file_name = format!("{}{}_{}{}", prefix, file_count, date, file_extension);
+        }
+        let file_path = PathBuf::from(dir_path).join(file_name);
 
-    // Check if the file already exists
+        // Check if the file already exists
 
-    if file_path.exists() {
-        // file exists
-        // Check if the file is empty
-        let is_empty = file_path.metadata().map(|m| m.len() == 0).unwrap_or(false);
+        if file_path.exists() {
+            // file exists
+            // Check if the file is empty
+            let is_empty = file_path.metadata().map(|m| m.len() == 0).unwrap_or(false);
 
-        if is_empty {
-            // file empty
+            if is_empty {
+                // file empty
+                let file = OpenOptions::new()
+                    .write(true)
+                    .append(true)
+                    .open(&file_path)
+                    .expect("Failed to open file");
+
+                let file_mutex = Arc::new(Mutex::new(file));
+                let file_mutex_clone = Arc::clone(&file_mutex);
+                let mut file = file_mutex_clone.lock().unwrap();
+
+                match json_value {
+                    serde_json::Value::Object(_obj) => {
+                        // Handle a JSON object.
+                        return rocket::response::status::Custom(
+                            Status::Ok,
+                            "Processed JSON data successfully".to_string(),
+                        );
+                    }
+                    serde_json::Value::Array(arr) => {
+                        // Handle a JSON array.
+
+                        for json_obj in Json(arr).into_inner() {
+                            // Open the file in append mode
+                            match json_obj["payload"].get("type") {
+                                Some(e) => {
+                                    if e.as_str().unwrap() == "connect" {
+                                        file.write_all(b"[").expect("failed to write to file");
+                                        START.store(1, Ordering::Relaxed);
+                                    } else if e.as_str().unwrap() == "disconnect" {
+                                        let mut byte_array = serde_json::to_vec(&json_obj).unwrap();
+                                        byte_array.push(b']');
+
+                                        file.write(&byte_array[..])
+                                            .expect("failed to write to file");
+                                        START.store(0, Ordering::Relaxed);
+                                    }
+                                }
+                                None => (),
+                            }
+
+                            if START.load(Ordering::Relaxed) == 1 {
+                                let mut byte_array = serde_json::to_vec(&json_obj).unwrap();
+
+                                byte_array.push(b',');
+
+                                file.write_all(&byte_array[..])
+                                    .expect("failed to write to file");
+                            }
+                        }
+                        return rocket::response::status::Custom(
+                            Status::Ok,
+                            "Processed JSON data successfully".to_string(),
+                        );
+                    }
+                    _ => {
+                        // Handle any other type of JSON value.
+                        return rocket::response::status::Custom(
+                            Status::BadRequest,
+                            "Bad Request".to_string(),
+                        );
+                    }
+                }
+            } else {
+                // file not empty
+                let mut file = OpenOptions::new()
+                    .write(true)
+                    .append(true)
+                    .read(true)
+                    .open(&file_path)
+                    .expect("Failed to open file");
+
+                let mut contents = String::new();
+
+                file.read_to_string(&mut contents)
+                    .expect("Failed to read file");
+
+                let file_mutex = Arc::new(Mutex::new(file));
+                let file_mutex_clone = Arc::clone(&file_mutex);
+                let mut file = file_mutex_clone.lock().unwrap();
+
+                if contents.ends_with(']') {
+                    // not empty and Check if the last character of the file is a ']'
+                    // Increment the file count and create a new file with the incremented %i
+                    let new_file_count = file_count + 1;
+                    let new_file_name =
+                        format!("{}{}_{}{}", prefix, new_file_count, date, file_extension);
+                    let new_file_path = PathBuf::from(dir_path).join(new_file_name);
+
+                    let new_file = OpenOptions::new()
+                        .write(true)
+                        .append(true)
+                        .create(true)
+                        .open(&new_file_path)
+                        .expect("Failed to create file");
+
+                    let file_mutex = Arc::new(Mutex::new(new_file));
+                    let file_mutex_clone = Arc::clone(&file_mutex);
+                    let mut new_file = file_mutex_clone.lock().unwrap();
+
+                    match json_value {
+                        serde_json::Value::Object(_obj) => {
+                            // Handle a JSON object.
+                            return rocket::response::status::Custom(
+                                Status::Ok,
+                                "Processed JSON data successfully".to_string(),
+                            );
+                        }
+                        serde_json::Value::Array(arr) => {
+                            // Handle a JSON array.
+
+                            for json_obj in Json(arr).into_inner() {
+                                // Open the file in append mode
+                                match json_obj["payload"].get("type") {
+                                    Some(e) => {
+                                        if e.as_str().unwrap() == "connect" {
+                                            new_file
+                                                .write_all(b"[")
+                                                .expect("failed to write to file");
+                                            START.store(1, Ordering::Relaxed);
+                                        } else if e.as_str().unwrap() == "disconnect" {
+                                            let mut byte_array =
+                                                serde_json::to_vec(&json_obj).unwrap();
+                                            byte_array.push(b']');
+
+                                            new_file
+                                                .write(&byte_array[..])
+                                                .expect("failed to write to file");
+                                            START.store(0, Ordering::Relaxed);
+                                        }
+                                    }
+                                    None => (),
+                                }
+
+                                if START.load(Ordering::Relaxed) == 1 {
+                                    let mut byte_array = serde_json::to_vec(&json_obj).unwrap();
+
+                                    byte_array.push(b',');
+
+                                    new_file
+                                        .write(&byte_array[..])
+                                        .expect("failed to write to file");
+                                }
+                            }
+                            return rocket::response::status::Custom(
+                                Status::Ok,
+                                "Processed JSON data successfully".to_string(),
+                            );
+                        }
+                        _ => {
+                            // Handle any other type of JSON value.
+                            return rocket::response::status::Custom(
+                                Status::BadRequest,
+                                "Bad Request".to_string(),
+                            );
+                        }
+                    }
+                } else {
+                    // not empty and no ]
+                    match json_value {
+                        serde_json::Value::Object(_obj) => {
+                            // Handle a JSON object.
+                            return rocket::response::status::Custom(
+                                Status::Ok,
+                                "Processed JSON data successfully".to_string(),
+                            );
+                        }
+                        serde_json::Value::Array(arr) => {
+                            // Handle a JSON array.
+
+                            for json_obj in Json(arr).into_inner() {
+                                // Open the file in append mode
+                                match json_obj["payload"].get("type") {
+                                    Some(e) => {
+                                        if e.as_str().unwrap() == "connect" {
+                                            START.store(1, Ordering::Relaxed);
+                                        } else if e.as_str().unwrap() == "disconnect" {
+                                            let mut byte_array =
+                                                serde_json::to_vec(&json_obj).unwrap();
+                                            byte_array.push(b']');
+
+                                            file.write(&byte_array[..])
+                                                .expect("failed to write to file");
+                                            START.store(0, Ordering::Relaxed);
+                                        }
+                                    }
+                                    None => (),
+                                }
+
+                                if START.load(Ordering::Relaxed) == 1 {
+                                    let mut byte_array = serde_json::to_vec(&json_obj).unwrap();
+
+                                    byte_array.push(b',');
+
+                                    file.write_all(&byte_array[..])
+                                        .expect("failed to write to file");
+                                }
+                            }
+                            return rocket::response::status::Custom(
+                                Status::Ok,
+                                "Processed JSON data successfully".to_string(),
+                            );
+                        }
+                        _ => {
+                            // Handle any other type of JSON value.
+                            return rocket::response::status::Custom(
+                                Status::BadRequest,
+                                "Bad Request".to_string(),
+                            );
+                        }
+                    }
+                }
+            }
+        } else {
+            // Create the file if it does not already exist
             let file = OpenOptions::new()
                 .write(true)
                 .append(true)
+                .create(true)
                 .open(&file_path)
-                .expect("Failed to open file");
+                .expect("Failed to create file");
 
             let file_mutex = Arc::new(Mutex::new(file));
             let file_mutex_clone = Arc::clone(&file_mutex);
@@ -116,10 +342,10 @@ pub async fn notif(json_data: Json<serde_json::Value>) -> rocket::response::stat
             match json_value {
                 serde_json::Value::Object(_obj) => {
                     // Handle a JSON object.
-                    rocket::response::status::Custom(
+                    return rocket::response::status::Custom(
                         Status::Ok,
                         "Processed JSON data successfully".to_string(),
-                    )
+                    );
                 }
                 serde_json::Value::Array(arr) => {
                     // Handle a JSON array.
@@ -152,225 +378,22 @@ pub async fn notif(json_data: Json<serde_json::Value>) -> rocket::response::stat
                                 .expect("failed to write to file");
                         }
                     }
-                    rocket::response::status::Custom(
+                    return rocket::response::status::Custom(
                         Status::Ok,
                         "Processed JSON data successfully".to_string(),
-                    )
+                    );
                 }
                 _ => {
                     // Handle any other type of JSON value.
-                    rocket::response::status::Custom(Status::BadRequest, "Bad Request".to_string())
+                    return rocket::response::status::Custom(
+                        Status::BadRequest,
+                        "Bad Request".to_string(),
+                    );
                 }
-            }
-        } else {
-            // file not empty
-            let mut file = OpenOptions::new()
-                .write(true)
-                .append(true)
-                .read(true)
-                .open(&file_path)
-                .expect("Failed to open file");
-
-            let mut contents = String::new();
-
-            file.read_to_string(&mut contents)
-                .expect("Failed to read file");
-
-            let file_mutex = Arc::new(Mutex::new(file));
-            let file_mutex_clone = Arc::clone(&file_mutex);
-            let mut file = file_mutex_clone.lock().unwrap();
-
-            if contents.ends_with(']') {
-                // not empty and Check if the last character of the file is a ']'
-                // Increment the file count and create a new file with the incremented %i
-                let new_file_count = file_count + 1;
-                let new_file_name =
-                    format!("{}{}_{}{}", prefix, new_file_count, date, file_extension);
-                let new_file_path = PathBuf::from(dir_path).join(new_file_name);
-
-                let new_file = OpenOptions::new()
-                    .write(true)
-                    .append(true)
-                    .create(true)
-                    .open(&new_file_path)
-                    .expect("Failed to create file");
-
-                let file_mutex = Arc::new(Mutex::new(new_file));
-                let file_mutex_clone = Arc::clone(&file_mutex);
-                let mut new_file = file_mutex_clone.lock().unwrap();
-
-                match json_value {
-                    serde_json::Value::Object(_obj) => {
-                        // Handle a JSON object.
-                        rocket::response::status::Custom(
-                            Status::Ok,
-                            "Processed JSON data successfully".to_string(),
-                        )
-                    }
-                    serde_json::Value::Array(arr) => {
-                        // Handle a JSON array.
-
-                        for json_obj in Json(arr).into_inner() {
-                            // Open the file in append mode
-                            match json_obj["payload"].get("type") {
-                                Some(e) => {
-                                    if e.as_str().unwrap() == "connect" {
-                                        new_file.write_all(b"[").expect("failed to write to file");
-                                        START.store(1, Ordering::Relaxed);
-                                    } else if e.as_str().unwrap() == "disconnect" {
-                                        let mut byte_array = serde_json::to_vec(&json_obj).unwrap();
-                                        byte_array.push(b']');
-
-                                        new_file
-                                            .write(&byte_array[..])
-                                            .expect("failed to write to file");
-                                        START.store(0, Ordering::Relaxed);
-                                    }
-                                }
-                                None => (),
-                            }
-
-                            if START.load(Ordering::Relaxed) == 1 {
-                                let mut byte_array = serde_json::to_vec(&json_obj).unwrap();
-
-                                byte_array.push(b',');
-
-                                new_file
-                                    .write(&byte_array[..])
-                                    .expect("failed to write to file");
-                            }
-                        }
-                        rocket::response::status::Custom(
-                            Status::Ok,
-                            "Processed JSON data successfully".to_string(),
-                        )
-                    }
-                    _ => {
-                        // Handle any other type of JSON value.
-                        rocket::response::status::Custom(
-                            Status::BadRequest,
-                            "Bad Request".to_string(),
-                        )
-                    }
-                }
-            } else {
-                // not empty and no ]
-                match json_value {
-                    serde_json::Value::Object(_obj) => {
-                        // Handle a JSON object.
-                        rocket::response::status::Custom(
-                            Status::Ok,
-                            "Processed JSON data successfully".to_string(),
-                        )
-                    }
-                    serde_json::Value::Array(arr) => {
-                        // Handle a JSON array.
-
-                        for json_obj in Json(arr).into_inner() {
-                            // Open the file in append mode
-                            match json_obj["payload"].get("type") {
-                                Some(e) => {
-                                    if e.as_str().unwrap() == "connect" {
-                                        START.store(1, Ordering::Relaxed);
-                                    } else if e.as_str().unwrap() == "disconnect" {
-                                        let mut byte_array = serde_json::to_vec(&json_obj).unwrap();
-                                        byte_array.push(b']');
-
-                                        file.write(&byte_array[..])
-                                            .expect("failed to write to file");
-                                        START.store(0, Ordering::Relaxed);
-                                    }
-                                }
-                                None => (),
-                            }
-
-                            if START.load(Ordering::Relaxed) == 1 {
-                                let mut byte_array = serde_json::to_vec(&json_obj).unwrap();
-
-                                byte_array.push(b',');
-
-                                file.write_all(&byte_array[..])
-                                    .expect("failed to write to file");
-                            }
-                        }
-                        rocket::response::status::Custom(
-                            Status::Ok,
-                            "Processed JSON data successfully".to_string(),
-                        )
-                    }
-                    _ => {
-                        // Handle any other type of JSON value.
-                        rocket::response::status::Custom(
-                            Status::BadRequest,
-                            "Bad Request".to_string(),
-                        )
-                    }
-                }
-            }
-        }
-    } else {
-        // Create the file if it does not already exist
-        let file = OpenOptions::new()
-            .write(true)
-            .append(true)
-            .create(true)
-            .open(&file_path)
-            .expect("Failed to create file");
-
-        let file_mutex = Arc::new(Mutex::new(file));
-        let file_mutex_clone = Arc::clone(&file_mutex);
-        let mut file = file_mutex_clone.lock().unwrap();
-
-        match json_value {
-            serde_json::Value::Object(_obj) => {
-                // Handle a JSON object.
-                rocket::response::status::Custom(
-                    Status::Ok,
-                    "Processed JSON data successfully".to_string(),
-                )
-            }
-            serde_json::Value::Array(arr) => {
-                // Handle a JSON array.
-
-                for json_obj in Json(arr).into_inner() {
-                    // Open the file in append mode
-                    match json_obj["payload"].get("type") {
-                        Some(e) => {
-                            if e.as_str().unwrap() == "connect" {
-                                file.write_all(b"[").expect("failed to write to file");
-                                START.store(1, Ordering::Relaxed);
-                            } else if e.as_str().unwrap() == "disconnect" {
-                                let mut byte_array = serde_json::to_vec(&json_obj).unwrap();
-                                byte_array.push(b']');
-
-                                file.write(&byte_array[..])
-                                    .expect("failed to write to file");
-                                START.store(0, Ordering::Relaxed);
-                            }
-                        }
-                        None => (),
-                    }
-
-                    if START.load(Ordering::Relaxed) == 1 {
-                        let mut byte_array = serde_json::to_vec(&json_obj).unwrap();
-
-                        byte_array.push(b',');
-
-                        file.write_all(&byte_array[..])
-                            .expect("failed to write to file");
-                    }
-                }
-                rocket::response::status::Custom(
-                    Status::Ok,
-                    "Processed JSON data successfully".to_string(),
-                )
-            }
-            _ => {
-                // Handle any other type of JSON value.
-                rocket::response::status::Custom(Status::BadRequest, "Bad Request".to_string())
             }
         }
     }
+    rocket::response::status::Custom(Status::Ok, "Record Disabled".to_string())
 }
 
 #[post("/upload", data = "<data>")]
@@ -582,6 +605,8 @@ pub async fn simulate(content_type: &ContentType, user_input: Data<'_>) -> Redir
             let (psender, preceiver) = channel();
             let (replay_sender, replay_receiver) = channel();
 
+            let cloned_url = turl_text.clone();
+
             let worker = tokio::spawn(async move {
                 use futures::future::join_all;
                 let mut handles = vec![];
@@ -631,6 +656,14 @@ pub async fn simulate(content_type: &ContentType, user_input: Data<'_>) -> Redir
 
                 join_all(handles).await;
 
+                for index in 0..THREADS.len() {
+                    if let Some(e) = THREADS.load(index) {
+                        if e.0 == *cloned_url {
+                            THREADS.store(index, None);
+                        }
+                    }
+                }
+
                 println!("Work Done !")
             });
 
@@ -659,7 +692,14 @@ pub async fn simulate(content_type: &ContentType, user_input: Data<'_>) -> Redir
 }
 
 fn read_json_array_from_file(file_path: &str) -> serde_json::Result<Vec<Value>> {
-    let mut file = File::open(file_path).unwrap();
+    dotenv().ok();
+    let mut file = File::open(format!(
+        "{}{}{}",
+        env::var("DIR").unwrap(),
+        "uploads/",
+        file_path
+    ))
+    .unwrap();
     let mut contents = String::new();
     file.read_to_string(&mut contents).unwrap();
     let json_value: Value = serde_json::from_str(&contents).unwrap();
@@ -1836,11 +1876,14 @@ pub fn stream() -> EventStream![] {
 
         loop {
             let mut map = Map::new();
+            let mut threads = Map::new();
             for index in 0..THREADS.len(){
                 if let Some(e) = THREADS.load(index) {
-                    map.insert(e.0.to_string(), e.4.load(Ordering::Relaxed).into());
+                    threads.insert(e.0.to_string(), e.4.load(Ordering::Relaxed).into());
                 }
             }
+            map.insert("threads".to_string(),threads.into());
+            map.insert("record".to_string(),RECORD.load(Ordering::Relaxed).into());
             yield Event::json(&map);
             interval.tick().await;
         }
@@ -1902,7 +1945,9 @@ pub async fn index(msg: String) -> Template {
 
     // Use the `map()` function to extract the file names from the directory entries
     let file_names = dir_entries
-        .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+        .filter_map(Result::ok)
+        .filter(|entry| entry.file_name().to_string_lossy().starts_with("trip_"))
+        .map(|entry| entry.file_name().into_string().unwrap())
         .collect::<Vec<String>>();
 
     Template::render(
@@ -1967,7 +2012,9 @@ pub async fn indexx() -> Template {
 
     // Use the `map()` function to extract the file names from the directory entries
     let file_names = dir_entries
-        .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+        .filter_map(Result::ok)
+        .filter(|entry| entry.file_name().to_string_lossy().starts_with("trip_"))
+        .map(|entry| entry.file_name().into_string().unwrap())
         .collect::<Vec<String>>();
 
     Template::render(
