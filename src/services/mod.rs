@@ -13,6 +13,7 @@ use rocket::response::Redirect;
 use rocket::uri;
 use std::fs::{self, OpenOptions};
 use std::sync::atomic::AtomicI8;
+use std::sync::{Arc, Mutex};
 use tokio::task::JoinHandle;
 type GDirection = core::result::Result<
     google_maps::directions::response::Response,
@@ -42,7 +43,14 @@ use tokio::time::{self, Duration};
 use url::Url;
 
 static THREADS: Lazy<
-    AtomicOptionRefArray<(String, JoinHandle<()>, Sender<()>, Sender<()>, AtomicI8)>,
+    AtomicOptionRefArray<(
+        String,
+        JoinHandle<()>,
+        Sender<()>,
+        Sender<()>,
+        AtomicI8,
+        Sender<()>,
+    )>,
 > = Lazy::new(|| AtomicOptionRefArray::new(10));
 
 static INDEX: AtomicUsize = AtomicUsize::new(0);
@@ -95,11 +103,15 @@ pub async fn notif(json_data: Json<serde_json::Value>) -> rocket::response::stat
 
         if is_empty {
             // file empty
-            let mut file = OpenOptions::new()
+            let file = OpenOptions::new()
                 .write(true)
                 .append(true)
                 .open(&file_path)
                 .expect("Failed to open file");
+
+            let file_mutex = Arc::new(Mutex::new(file));
+            let file_mutex_clone = Arc::clone(&file_mutex);
+            let mut file = file_mutex_clone.lock().unwrap();
 
             match json_value {
                 serde_json::Value::Object(_obj) => {
@@ -120,6 +132,11 @@ pub async fn notif(json_data: Json<serde_json::Value>) -> rocket::response::stat
                                     file.write_all(b"[").expect("failed to write to file");
                                     START.store(1, Ordering::Relaxed);
                                 } else if e.as_str().unwrap() == "disconnect" {
+                                    let mut byte_array = serde_json::to_vec(&json_obj).unwrap();
+                                    byte_array.push(b']');
+
+                                    file.write(&byte_array[..])
+                                        .expect("failed to write to file");
                                     START.store(0, Ordering::Relaxed);
                                 }
                             }
@@ -153,9 +170,15 @@ pub async fn notif(json_data: Json<serde_json::Value>) -> rocket::response::stat
                 .read(true)
                 .open(&file_path)
                 .expect("Failed to open file");
+
             let mut contents = String::new();
+
             file.read_to_string(&mut contents)
                 .expect("Failed to read file");
+
+            let file_mutex = Arc::new(Mutex::new(file));
+            let file_mutex_clone = Arc::clone(&file_mutex);
+            let mut file = file_mutex_clone.lock().unwrap();
 
             if contents.ends_with(']') {
                 // not empty and Check if the last character of the file is a ']'
@@ -165,12 +188,16 @@ pub async fn notif(json_data: Json<serde_json::Value>) -> rocket::response::stat
                     format!("{}{}_{}{}", prefix, new_file_count, date, file_extension);
                 let new_file_path = PathBuf::from(dir_path).join(new_file_name);
 
-                let mut new_file = OpenOptions::new()
+                let new_file = OpenOptions::new()
                     .write(true)
                     .append(true)
                     .create(true)
                     .open(&new_file_path)
                     .expect("Failed to create file");
+
+                let file_mutex = Arc::new(Mutex::new(new_file));
+                let file_mutex_clone = Arc::clone(&file_mutex);
+                let mut new_file = file_mutex_clone.lock().unwrap();
 
                 match json_value {
                     serde_json::Value::Object(_obj) => {
@@ -191,6 +218,12 @@ pub async fn notif(json_data: Json<serde_json::Value>) -> rocket::response::stat
                                         new_file.write_all(b"[").expect("failed to write to file");
                                         START.store(1, Ordering::Relaxed);
                                     } else if e.as_str().unwrap() == "disconnect" {
+                                        let mut byte_array = serde_json::to_vec(&json_obj).unwrap();
+                                        byte_array.push(b']');
+
+                                        new_file
+                                            .write(&byte_array[..])
+                                            .expect("failed to write to file");
                                         START.store(0, Ordering::Relaxed);
                                     }
                                 }
@@ -240,12 +273,12 @@ pub async fn notif(json_data: Json<serde_json::Value>) -> rocket::response::stat
                                     if e.as_str().unwrap() == "connect" {
                                         START.store(1, Ordering::Relaxed);
                                     } else if e.as_str().unwrap() == "disconnect" {
-                                        START.store(0, Ordering::Relaxed);
-                                        let byte_array = serde_json::to_vec(&json_obj).unwrap();
+                                        let mut byte_array = serde_json::to_vec(&json_obj).unwrap();
+                                        byte_array.push(b']');
 
-                                        file.write_all(&byte_array[..])
+                                        file.write(&byte_array[..])
                                             .expect("failed to write to file");
-                                        file.write_all(b"]").expect("failed to write to file");
+                                        START.store(0, Ordering::Relaxed);
                                     }
                                 }
                                 None => (),
@@ -277,12 +310,16 @@ pub async fn notif(json_data: Json<serde_json::Value>) -> rocket::response::stat
         }
     } else {
         // Create the file if it does not already exist
-        let mut file = OpenOptions::new()
+        let file = OpenOptions::new()
             .write(true)
             .append(true)
             .create(true)
             .open(&file_path)
             .expect("Failed to create file");
+
+        let file_mutex = Arc::new(Mutex::new(file));
+        let file_mutex_clone = Arc::clone(&file_mutex);
+        let mut file = file_mutex_clone.lock().unwrap();
 
         match json_value {
             serde_json::Value::Object(_obj) => {
@@ -303,6 +340,11 @@ pub async fn notif(json_data: Json<serde_json::Value>) -> rocket::response::stat
                                 file.write_all(b"[").expect("failed to write to file");
                                 START.store(1, Ordering::Relaxed);
                             } else if e.as_str().unwrap() == "disconnect" {
+                                let mut byte_array = serde_json::to_vec(&json_obj).unwrap();
+                                byte_array.push(b']');
+
+                                file.write(&byte_array[..])
+                                    .expect("failed to write to file");
                                 START.store(0, Ordering::Relaxed);
                             }
                         }
@@ -352,28 +394,25 @@ pub async fn upload(content_type: &ContentType, data: Data<'_>) -> Redirect {
         let _file_name = &file_field.file_name;
         let _path = &file_field.path;
 
-        let mut path = PathBuf::new();
         dotenv().ok();
-        path.push(format!("{}{}", env::var("DIR").unwrap(), "uploads\\"));
+        let mut path = PathBuf::from(format!("{}{}", env::var("DIR").unwrap(), "uploads\\"));
         match _file_name {
             Some(name) => path.push(name),
             None => (),
         }
 
-        match fs::rename(_path, path) {
+        match fs::rename(_path, &path) {
             Ok(_c) => (),
-            Err(_e) => println!("rename panic !"),
+            Err(_e) => {
+                let stem = path.file_stem().unwrap();
+                let new_stem = format!("{}(1)", stem.to_string_lossy());
+                path.set_file_name(new_stem);
+                path.set_extension("json");
+                fs::rename(_path, path).unwrap()
+            }
         }
-        match store_tracks(_file_name).await {
-            Ok(_ok) => (),
-            Err(_err) => println!("store panic !"),
-        };
-        match update_tracks(_file_name).await {
-            Ok(_ok) => (),
-            Err(_err) => println!("store panic !"),
-        };
     }
-    Redirect::to(uri!(index("Files stored Successfully!")))
+    Redirect::to(uri!(index("File stored Successfully!")))
 }
 
 #[post("/simulate", data = "<user_input>")]
@@ -385,6 +424,7 @@ pub async fn simulate(content_type: &ContentType, user_input: Data<'_>) -> Redir
         MultipartFormDataField::text("key"),
         MultipartFormDataField::text("track_option"),
         MultipartFormDataField::text("presence_option"),
+        MultipartFormDataField::text("chosen_json_file"),
         MultipartFormDataField::text("track_file"),
         MultipartFormDataField::text("presence_file"),
     ]);
@@ -408,6 +448,8 @@ pub async fn simulate(content_type: &ContentType, user_input: Data<'_>) -> Redir
     let mut ttrack_file: String = "".to_string();
     let presence_file = multipart_form_data.texts.remove("presence_file");
     let mut tpresence_file: String = "".to_string();
+    let chosen_json_file = multipart_form_data.texts.remove("chosen_json_file");
+    let mut tchosen_json_file: String = "".to_string();
     let key = multipart_form_data.texts.remove("key");
     let mut tkey: String = "".to_string();
 
@@ -484,25 +526,14 @@ pub async fn simulate(content_type: &ContentType, user_input: Data<'_>) -> Redir
 
         tkey = _text;
     }
+    if let Some(mut chosen_json_file) = chosen_json_file {
+        let text_field = chosen_json_file.remove(0);
 
-    if ttrack_option.len() != 10 {
-        if ttrack_option.match_indices('-').nth(1) == Some((6, "-")) {
-            ttrack_option.insert(5, '0');
-        }
-        if ttrack_option.match_indices('-').nth(1) == Some((7, "-")) && ttrack_option.len() != 10 {
-            ttrack_option.insert(8, '0');
-        }
-    }
+        let _content_type = text_field.content_type;
+        let _file_name = text_field.file_name;
+        let _text = text_field.text;
 
-    if tpresence_option.len() != 10 {
-        if tpresence_option.match_indices('-').nth(1) == Some((6, "-")) {
-            tpresence_option.insert(5, '0');
-        }
-        if tpresence_option.match_indices('-').nth(1) == Some((7, "-"))
-            && tpresence_option.len() != 10
-        {
-            tpresence_option.insert(8, '0');
-        }
+        tchosen_json_file = _text;
     }
 
     let mut exists: bool = false;
@@ -523,14 +554,39 @@ pub async fn simulate(content_type: &ContentType, user_input: Data<'_>) -> Redir
 
     if ping_server(turl_text.clone()) && !exists {
         tokio::spawn(async move {
+            if ttrack_option.len() != 10 {
+                if ttrack_option.match_indices('-').nth(1) == Some((6, "-")) {
+                    ttrack_option.insert(5, '0');
+                }
+                if ttrack_option.match_indices('-').nth(1) == Some((7, "-"))
+                    && ttrack_option.len() != 10
+                {
+                    ttrack_option.insert(8, '0');
+                }
+            }
+
+            if tpresence_option.len() != 10 {
+                if tpresence_option.match_indices('-').nth(1) == Some((6, "-")) {
+                    tpresence_option.insert(5, '0');
+                }
+                if tpresence_option.match_indices('-').nth(1) == Some((7, "-"))
+                    && tpresence_option.len() != 10
+                {
+                    tpresence_option.insert(8, '0');
+                }
+            }
             // use futures::future::join_all;
             // let mut handles = vec![];
 
             let (tsender, treceiver) = channel();
             let (psender, preceiver) = channel();
+            let (replay_sender, replay_receiver) = channel();
 
             let worker = tokio::spawn(async move {
+                use futures::future::join_all;
+                let mut handles = vec![];
                 use google_maps::prelude::*;
+
                 if !tkey.is_empty() {
                     let google_maps_client = GoogleMapsClient::new(&tkey);
                     let directions = google_maps_client
@@ -554,6 +610,12 @@ pub async fn simulate(content_type: &ContentType, user_input: Data<'_>) -> Redir
                         preceiver,
                     )
                     .await;
+                } else if !tchosen_json_file.is_empty() {
+                    let replay_worker = tokio::spawn(async move {
+                        replay_one_file(&turl_text.clone(), &tchosen_json_file, replay_receiver)
+                            .await;
+                    });
+                    handles.push(replay_worker);
                 } else {
                     replay(
                         &turl_text.clone(),
@@ -567,12 +629,21 @@ pub async fn simulate(content_type: &ContentType, user_input: Data<'_>) -> Redir
                     .await;
                 }
 
+                join_all(handles).await;
+
                 println!("Work Done !")
             });
 
             THREADS.store(
                 INDEX.load(Ordering::Relaxed),
-                (turl_thread, worker, tsender, psender, AtomicI8::new(1)),
+                (
+                    turl_thread,
+                    worker,
+                    tsender,
+                    psender,
+                    AtomicI8::new(1),
+                    replay_sender,
+                ),
             );
             INDEX.store(INDEX.load(Ordering::Relaxed) + 1, Ordering::Relaxed);
 
@@ -585,6 +656,124 @@ pub async fn simulate(content_type: &ContentType, user_input: Data<'_>) -> Redir
         return Redirect::to(uri!(index("Simulating !")));
     }
     Redirect::to(uri!(index("Didn't receive a Pong or url already is use !")))
+}
+
+fn read_json_array_from_file(file_path: &str) -> serde_json::Result<Vec<Value>> {
+    let mut file = File::open(file_path).unwrap();
+    let mut contents = String::new();
+    file.read_to_string(&mut contents).unwrap();
+    let json_value: Value = serde_json::from_str(&contents).unwrap();
+    let array = json_value
+        .as_array()
+        .ok_or_else(|| println!("Not a JSON array"))
+        .unwrap();
+    Ok(array.to_vec())
+}
+use serde_json::{json, Value};
+use std::fs::File;
+use std::io::Read;
+
+pub async fn replay_one_file(url: &String, path: &String, receiver: Receiver<()>) {
+    let data_array = read_json_array_from_file(path).unwrap();
+
+    let mut missed_data: Vec<Value> = vec![];
+
+    let mut previous: Value = json!("");
+
+    let client = reqwest::Client::new();
+
+    let mut first = true;
+
+    let mut current_status: i8 = 1;
+
+    'outer: for json_value in data_array {
+        if first {
+            time::sleep(Duration::from_secs(1)).await;
+            first = false;
+        } else {
+            let t1 = DateTime::parse_from_rfc3339(match json_value["payload"]["time"].as_str() {
+                Some(e) => e,
+                _ => json_value["payload"]["received_at"].as_str().unwrap(),
+            })
+            .unwrap();
+            let t2 = DateTime::parse_from_rfc3339(match previous["payload"]["time"].as_str() {
+                Some(e) => e,
+                _ => previous["payload"]["received_at"].as_str().unwrap(),
+            })
+            .unwrap();
+
+            let elapsed_seconds = t1.timestamp() - t2.timestamp();
+
+            for _ in 0..elapsed_seconds {
+                time::sleep(Duration::from_secs(1)).await;
+                match receiver.try_recv() {
+                    Ok(_) | Err(TryRecvError::Disconnected) => {
+                        println!("Terminating presence thread.");
+                        break 'outer;
+                    }
+                    Err(TryRecvError::Empty) => {}
+                }
+            }
+        }
+
+        previous = json_value.clone();
+
+        println!("sending (Replay one file)...");
+
+        if missed_data.len() == 10 {
+            break 'outer;
+        }
+
+        let builder = {
+            if current_status == 1 {
+                client.post(url).json(&vec![&json_value])
+            } else {
+                client.post(url).json(&missed_data)
+            }
+        };
+        let res = builder.send().await;
+
+        match res {
+            Ok(_a) => match current_status {
+                1 => continue,
+                0 => {
+                    missed_data = vec![];
+                    current_status = 1;
+                    for index in 0..THREADS.len() {
+                        if let Some(e) = THREADS.load(index) {
+                            if e.0 == *url {
+                                e.4.store(current_status, Ordering::Relaxed);
+                            }
+                        }
+                    }
+                }
+                _ => continue,
+            },
+            Err(_err) => match current_status {
+                1 => {
+                    missed_data.push(json_value);
+                    current_status = 0;
+                    for index in 0..THREADS.len() {
+                        if let Some(e) = THREADS.load(index) {
+                            if e.0 == *url {
+                                e.4.store(current_status, Ordering::Relaxed);
+                            }
+                        }
+                    }
+                }
+                0 => missed_data.push(json_value),
+                _ => continue,
+            },
+        }
+        for index in 0..THREADS.len() {
+            if let Some(e) = THREADS.load(index) {
+                if e.0 == *url {
+                    e.4.store(current_status, Ordering::Relaxed);
+                }
+            }
+        }
+    }
+    println!("Shuting down the one file replay Handler thread!!")
 }
 
 async fn simulation(
@@ -1629,6 +1818,10 @@ pub fn abort_thread(url: String) {
                     Ok(_e) => println!("Terminating presences signal !"),
                     Err(e) => println!("{:?}", e),
                 }
+                match e.5.send(()) {
+                    Ok(_e) => println!("Terminating replay one file signal !"),
+                    Err(e) => println!("{:?}", e),
+                }
                 THREADS.store(index, None);
             }
         }
@@ -1703,9 +1896,18 @@ pub async fn index(msg: String) -> Template {
         .map_err(|e| println!("{}", e))
         .unwrap();
 
+    dotenv().ok();
+    let path = format!("{}{}", env::var("DIR").unwrap(), "uploads/");
+    let dir_entries = fs::read_dir(path).unwrap();
+
+    // Use the `map()` function to extract the file names from the directory entries
+    let file_names = dir_entries
+        .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+        .collect::<Vec<String>>();
+
     Template::render(
         "index",
-        context! {msg:msg,presence_dates:presence_dates,track_dates:track_dates},
+        context! {msg:msg,presence_dates:presence_dates,track_dates:track_dates,json_data:file_names},
     )
 }
 
@@ -1759,11 +1961,18 @@ pub async fn indexx() -> Template {
         .map_err(|e| println!("{}", e))
         .unwrap();
 
-    // println!("{:?}", track_dates);
+    dotenv().ok();
+    let path = format!("{}{}", env::var("DIR").unwrap(), "uploads/");
+    let dir_entries = fs::read_dir(path).unwrap();
+
+    // Use the `map()` function to extract the file names from the directory entries
+    let file_names = dir_entries
+        .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+        .collect::<Vec<String>>();
 
     Template::render(
         "index",
-        context! {msg:"",presence_dates:presence_dates,track_dates:track_dates},
+        context! {msg:"",presence_dates:presence_dates,track_dates:track_dates,json_data:file_names},
     )
 }
 
@@ -1804,6 +2013,16 @@ async fn store_tracks(file: &Option<String>) -> Result<(), Box<dyn Error + Send 
     }
     Ok(())
 }
+async fn update_presence(file: &Option<String>) -> Result<(), Box<dyn Error + Send + Sync>> {
+    let client = get_client().await.unwrap();
+
+    let collection: Collection<Tracks> = client.database("munic").collection("presences");
+
+    let filter = doc! {"file":{"$exists":false}};
+    let update = doc! {"$set": {"file":file}};
+    collection.update_many(filter, update, None).await.unwrap();
+    Ok(())
+}
 
 async fn update_tracks(file: &Option<String>) -> Result<(), Box<dyn Error + Send + Sync>> {
     let client = get_client().await.unwrap();
@@ -1813,6 +2032,28 @@ async fn update_tracks(file: &Option<String>) -> Result<(), Box<dyn Error + Send
     let filter = doc! {"file":{"$exists":false}};
     let update = doc! {"$set": {"file":file}};
     collection.update_many(filter, update, None).await.unwrap();
+    Ok(())
+}
+async fn store_presence(file: &Option<String>) -> Result<(), Box<dyn Error + Send + Sync>> {
+    let data = match file {
+        Some(file_name) => {
+            fs::read_to_string("./uploads/".to_owned() + file_name).expect("Unable to read file")
+        }
+        None => "".to_owned(),
+    };
+
+    let json_data: Vec<Presence> = serde_json::from_str(&data).expect("Unable to read file");
+
+    let client = get_client().await.unwrap();
+
+    let collection = client.database("munic").collection("presences");
+
+    for presence in json_data {
+        match collection.insert_one(presence, None).await {
+            Ok(_e) => continue,
+            Err(_e) => panic!("presence storage panic !!"),
+        }
+    }
     Ok(())
 }
 
