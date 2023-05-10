@@ -1934,7 +1934,9 @@ name = "munic_simulator"
 version = "1.0.0"
 dependencies = [
  "atomic-array",
+ "base64 0.13.1",
  "bson",
+ "byteorder",
  "chrono",
  "dns-lookup",
  "dotenvy",
@@ -1943,6 +1945,7 @@ dependencies = [
  "google_maps",
  "is_empty",
  "mongodb",
+ "num-traits",
  "once_cell",
  "polyline",
  "reqwest",
@@ -1950,6 +1953,7 @@ dependencies = [
  "rocket-multipart-form-data",
  "rocket_contrib",
  "rocket_dyn_templates",
+ "rust_decimal",
  "rust_socketio",
  "serde",
  "serde_json",
@@ -2826,9 +2830,9 @@ dependencies = [
 
 [[package]]
 name = "rust_decimal"
-version = "1.29.0"
+version = "1.29.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2b1b21b8760b0ef8ae5b43d40913ff711a2053cb7ff892a34facff7a6365375a"
+checksum = "26bd36b60561ee1fb5ec2817f198b6fd09fa571c897a5e86d1487cfc2b096dfc"
 dependencies = [
  "arrayvec",
  "borsh",

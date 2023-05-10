@@ -5,7 +5,7 @@ use is_empty::IsEmpty;
 use rocket::FromForm;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Clone, Deserialize)]
 pub struct Presence {
     pub id: i64,
 
@@ -39,7 +39,7 @@ pub struct Presence {
     pub time: Option<String>,
 }
 
-#[derive(FromForm, Default, Debug)]
+#[derive(FromForm, Default, Clone, Debug)]
 pub struct UserInput {
     pub lon: String,
     pub key: String,
@@ -51,19 +51,19 @@ pub struct UserInput {
     pub presence_file: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Clone, Deserialize)]
 pub struct Req<T> {
     pub meta: Eveent,
     pub payload: T,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Clone, Deserialize)]
 pub struct Eveent {
     pub account: String,
     pub event: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Clone, Deserialize)]
 pub struct Tracks {
     pub id: i64,
 
@@ -104,7 +104,7 @@ impl<T: Default + PartialEq> ShouldSkip for Option<T> {
     }
 }
 
-#[derive(Debug, Serialize, Default, Deserialize)]
+#[derive(Debug, Serialize, Default, Clone, Deserialize)]
 #[serde(rename_all(serialize = "UPPERCASE", deserialize = "UPPERCASE"))]
 pub struct Fields {
     //---------------Generic Data-------------------------
@@ -448,7 +448,7 @@ pub struct Fields {
 #[derive(Debug, Serialize, Default, PartialEq, Deserialize, IsEmpty, Clone)]
 pub struct Base64 {
     #[serde(skip_serializing_if = "Option::is_none")]
-    b64_value: Option<String>,
+    pub(crate) b64_value: Option<String>,
 }
 
 impl From<&Document> for Fields {

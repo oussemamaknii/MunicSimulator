@@ -32,6 +32,11 @@ rocket-multipart-form-data = "0.10.5"
 atomic-array = "0.3"
 once_cell = "1.17.1"
 geo = "0.24.1"
+rust_decimal = "1.29.1"
+num-traits = "0.2.15"
+byteorder = "1.4.3"
+base64 = "0.13.0"
+
 
 [dependencies.rocket_dyn_templates]
 features = ["tera"]

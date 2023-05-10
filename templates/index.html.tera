@@ -640,8 +640,8 @@
     }
   });
 
-  rep_chk.addEventListener('change', function () {
-    if (rep_chk.checked) {
+  reps_chk.addEventListener('change', function () {
+    if (reps_chk.checked) {
       showForm("form1")
       button1.innerText = "Replay !"
       var divsToHide = document.getElementsByClassName("sim_elements");
@@ -664,8 +664,8 @@
   });
 
 
-  reps_chk.addEventListener('change', function () {
-    if (reps_chk.checked) {
+  rep_chk.addEventListener('change', function () {
+    if (rep_chk.checked) {
       showForm("form1")
       button1.innerText = "Replay !"
       var divsToHide = document.getElementsByClassName("sim_elements");
@@ -1112,6 +1112,7 @@
       lat.disabled = false;
       lon.disabled = false;
     }
+    button1.disabled = !((tf_select.value != "") && (pf_select.value != "") && (validator.isURL(event.target.value))) && !((validator.isURL(event.target.value)) && (chosen_json_file.value != "")) && !((validator.isURL(event.target.value)) && (key.value != ""))
   });
 
   json_file.addEventListener("change", (event) => {
@@ -1135,7 +1136,7 @@
         t_select.appendChild(new_option);
       }
     };
-    button1.disabled = ((pf_select.value == "") || (tf_select.value == "") || (url.value == "")) && ((chosen_json_file.value == "") || (url.value == ""))
+    button1.disabled = ((pf_select.value == "") || (tf_select.value == "") || (url.value == "")) && ((chosen_json_file.value == "") || (url.value == "")) && ((key.value == "") || (url.value == ""))
   });
   pf_select.addEventListener("change", (event) => {
     removeOptions(p_select);
@@ -1147,11 +1148,11 @@
         p_select.appendChild(new_option);
       }
     };
-    button1.disabled = ((pf_select.value == "") || (tf_select.value == "") || (url.value == "")) && ((chosen_json_file.value == "") || (url.value == ""))
+    button1.disabled = ((pf_select.value == "") || (tf_select.value == "") || (url.value == "")) && ((chosen_json_file.value == "") || (url.value == "")) && ((key.value == "") || (url.value == ""))
   });
 
   chosen_json_file.addEventListener("change", (event) => {
-    button1.disabled = ((pf_select.value == "") || (tf_select.value == "") || (url.value == "")) && ((chosen_json_file.value == "") || (url.value == ""))
+    button1.disabled = ((pf_select.value == "") || (tf_select.value == "") || (url.value == "")) && ((chosen_json_file.value == "") || (url.value == "")) && ((key.value == "") || (url.value == ""))
   });
 
   function removeOptions(selectElement) {
@@ -1162,7 +1163,7 @@
   }
 
   url.addEventListener("input", (event) => {
-    button1.disabled = !((tf_select.value != "") && (pf_select.value != "") && (validator.isURL(event.target.value))) && !((validator.isURL(event.target.value)) && (chosen_json_file.value != ""))
+    button1.disabled = !((tf_select.value != "") && (pf_select.value != "") && (validator.isURL(event.target.value))) && !((validator.isURL(event.target.value)) && (chosen_json_file.value != "")) && !((validator.isURL(event.target.value)) && (key.value != ""))
   });
 </script>
 
