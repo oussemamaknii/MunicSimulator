@@ -8,13 +8,17 @@ use bson::{doc, Bson, Document};
 use chrono::{DateTime, Local};
 use mongodb::Collection;
 use once_cell::sync::Lazy;
+use regex::Regex;
+use rocket::outcome::Outcome;
 use rocket::response::stream::{Event, EventStream};
 use rocket::response::Redirect;
-use rocket::uri;
+use rocket::{data, uri};
+use std::collections::HashMap;
 use std::fs::{self, OpenOptions};
 use std::sync::atomic::AtomicI8;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
+use tokio::io::AsyncReadExt;
 use tokio::task::JoinHandle;
 type GDirection = core::result::Result<
     google_maps::directions::response::Response,
@@ -439,6 +443,49 @@ pub async fn upload(content_type: &ContentType, data: Data<'_>) -> Redirect {
     Redirect::to(uri!(index("File stored Successfully!")))
 }
 
+#[post("/form-data", data = "<data>")]
+pub async fn handle_form_data(
+    content_type: &ContentType,
+    data: Data<'_>,
+) -> Result<String, std::io::Error> {
+    use multipart::server::Multipart;
+    use rocket::data::ByteUnit;
+    use rocket::tokio::io::AsyncReadExt;
+    use std::io::Cursor;
+    if let Some(boundary) =
+        content_type
+            .params()
+            .find_map(|(k, v)| if k == "boundary" { Some(v) } else { None })
+    {
+        // Read the data into a Vec<u8>
+        let mut buffer = Vec::new();
+        data.open(ByteUnit::default())
+            .read_to_end(&mut buffer)
+            .await?;
+
+        // Create a Multipart instance using the boundary
+        let mut multipart = Multipart::with_body(Cursor::new(buffer), boundary);
+
+        // Iterate over the fields
+        while let Some(mut field) = multipart.read_entry().unwrap() {
+            let field_name = field.headers.name.clone();
+            let mut field_data = Vec::new();
+            field.data.read_to_end(&mut field_data).unwrap();
+
+            // Process the field data as needed
+            println!("Field name: {}", field_name);
+            println!("Field data: {:?}", field_data);
+        }
+
+        Ok("Form data processed successfully".to_string())
+    } else {
+        Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "Invalid content type",
+        ))
+    }
+}
+
 #[post("/simulate", data = "<user_input>")]
 pub async fn simulate(content_type: &ContentType, user_input: Data<'_>) -> Redirect {
     let options = MultipartFormDataOptions::with_multipart_form_data_fields(vec![
@@ -451,11 +498,26 @@ pub async fn simulate(content_type: &ContentType, user_input: Data<'_>) -> Redir
         MultipartFormDataField::text("chosen_json_file"),
         MultipartFormDataField::text("track_file"),
         MultipartFormDataField::text("presence_file"),
+        MultipartFormDataField::text("field_name_0"),
+        MultipartFormDataField::text("field_name_1"),
+        MultipartFormDataField::text("field_name_2"),
+        MultipartFormDataField::text("field_name_3"),
+        MultipartFormDataField::text("field_name_4"),
     ]);
 
     let mut multipart_form_data = MultipartFormData::parse(content_type, user_input, options)
         .await
         .unwrap();
+
+    let mut extracted_fields = Vec::new();
+    let pattern = Regex::new(r"field_name_\d+").unwrap();
+
+    for (key, value) in multipart_form_data.texts.iter() {
+        if pattern.is_match(&key) {
+            extracted_fields.push((key.clone(), value[0].text.clone()));
+        }
+    }
+    println!("{:?}", extracted_fields);
 
     let url_text = multipart_form_data.texts.remove("url");
     let mut turl_text: String = "".to_string();
@@ -923,50 +985,6 @@ async fn simulation(
     }
 
     println!("Shuting down the simulation thread Handler !!")
-}
-
-use rust_decimal::prelude::*;
-use std::f64::consts::PI;
-
-trait ToRadians {
-    fn to_radians(self) -> Self;
-}
-
-impl ToRadians for f64 {
-    fn to_radians(self) -> f64 {
-        self * PI / 180.0
-    }
-}
-
-// fn float64_size_4_to_base64(f64_num: f64) -> String {
-//     use base64::{engine::general_purpose, Engine as _};
-//     let decimal_num = ((f64_num.round() as f32).abs() * 1000.0).round() as i32;
-//     let sign_bit = if f64_num < 0.0 { 0x80 } else { 0x00 };
-//     let decimal_bytes: [u8; 4] = decimal_num.to_be_bytes();
-//     let mut bytes = [0u8; 4];
-//     bytes[0] = sign_bit | decimal_bytes[0];
-//     bytes[1] = decimal_bytes[1];
-//     bytes[2] = decimal_bytes[2];
-//     bytes[3] = decimal_bytes[3];
-//     println!("{}", general_purpose::STANDARD.encode(&bytes));
-//     general_purpose::STANDARD.encode(&bytes)
-// }
-
-fn float64_to_base64(f64_num: f64) -> String {
-    let fixed_point_value = (f64_num * 10000.0).round();
-    let signed_integer = fixed_point_value as i32;
-    let byte_array: [u8; 4] = unsafe { mem::transmute(signed_integer.to_le()) };
-    base64::encode(&byte_array)
-}
-
-fn int_to_base64(value: i32) -> String {
-    let bytes = value.to_be_bytes();
-    base64::encode_config(&bytes, base64::STANDARD)
-}
-
-fn bool_to_base64(boolean_value: bool) -> String {
-    let byte_value: &[u8] = if boolean_value { b"\x01" } else { b"\x00" };
-    base64::encode(&byte_value)
 }
 
 async fn simulate_tracks(
@@ -2175,4 +2193,34 @@ fn ping_server(url: String) -> bool {
         Ok(_) => true,
         Err(_err) => false,
     }
+}
+
+use rust_decimal::prelude::*;
+use std::f64::consts::PI;
+
+trait ToRadians {
+    fn to_radians(self) -> Self;
+}
+
+impl ToRadians for f64 {
+    fn to_radians(self) -> f64 {
+        self * PI / 180.0
+    }
+}
+
+fn float64_to_base64(f64_num: f64) -> String {
+    let fixed_point_value = (f64_num * 10000.0).round();
+    let signed_integer = fixed_point_value as i32;
+    let byte_array: [u8; 4] = unsafe { mem::transmute(signed_integer.to_le()) };
+    base64::encode(&byte_array)
+}
+
+fn int_to_base64(value: i32) -> String {
+    let bytes = value.to_be_bytes();
+    base64::encode_config(&bytes, base64::STANDARD)
+}
+
+fn bool_to_base64(boolean_value: bool) -> String {
+    let byte_value: &[u8] = if boolean_value { b"\x01" } else { b"\x00" };
+    base64::encode(&byte_value)
 }

@@ -17,6 +17,7 @@ fn rocket() -> _ {
                 services::simulate,
                 services::index,
                 services::indexx,
+                services::handle_form_data,
                 services::upload,
                 services::notif,
                 services::stream,

@@ -710,6 +710,7 @@
   var index = 0
 
   addcustom.addEventListener('click', function () {
+    index += 1
     var fieldDiv = document.getElementById("custom-fields")
     var div = document.createElement("div")
     div.setAttribute("id", "field")
@@ -718,7 +719,8 @@
     var input = document.createElement("input")
     input.placeholder = "EnterField Name"
     input.type = "text"
-    input.name = "field_name"
+    input.name = "field_name_" + index
+    input.required = true
 
     var divselects = document.createElement("div")
     divselects.setAttribute("id", "http-div")
@@ -727,7 +729,7 @@
     var labelT = document.createElement("label")
     labelT.innerText = "Select a Type"
     var select = document.createElement("select")
-
+    select.name = "type_" + index
     var option0 = document.createElement("option")
     var option1 = document.createElement("option")
     var option2 = document.createElement("option")
@@ -766,6 +768,7 @@
           var labelV = document.createElement("label")
           labelV.innerText = "Select a Value"
           var select2 = document.createElement("select")
+          select2.name = "bool_option_" + index
 
           var opt0 = document.createElement("option")
           var opt1 = document.createElement("option")
@@ -797,9 +800,9 @@
           input1.placeholder = "Min"
           input2.placeholder = "Max"
           input3.placeholder = "Deviation"
-          input1.name = "min"
-          input2.name = "max"
-          input3.name = "deviation"
+          input1.name = "min_" + index
+          input2.name = "max_" + index
+          input3.name = "deviation_" + index
           divv.append(input1, input2, input3)
           divselects.append(labelV, divv)
           setInputFilter(input1, function (value) {
@@ -824,7 +827,7 @@
           var labelV = document.createElement("label")
           labelV.innerText = "Select a Value"
           var select2 = document.createElement("select")
-
+          select2.name = "str_option_" + index
           var opt0 = document.createElement("option")
           var opt1 = document.createElement("option")
           var opt2 = document.createElement("option")
@@ -851,7 +854,7 @@
                 labelS.innerText = "Select a Size"
                 var size = document.createElement("input")
                 size.placeholder = "Type a size"
-                size.name = "size"
+                size.name = "size_" + index
                 setInputFilter(size, function (value) {
                   return /^\d*$/.test(value) && (value === "" || parseInt(value) <= 10);
                 }, "Must be between 0 and 10");
@@ -873,12 +876,11 @@
                 li_div.append(ul)
                 string.addEventListener('keyup', function (e) {
                   if (e.key === 'Enter' || e.keyCode === 13) {
-                    console.log("hi")
                     // Prevent the default action of submitting the form
                     e.preventDefault();
                     if (string.value != "") {
                       var imput = document.createElement("input")
-                      imput.name = "string" + nbe_strings
+                      imput.name = "string_option_" + nbe_strings + "_" + index
                       imput.hidden = true
                       imput.value = string.value
                       var li = document.createElement("li")
@@ -925,7 +927,6 @@
 
     div.append(label, br1, input, divselects, li_div, labelP, br2, inputP, deleteB)
     fieldDiv.appendChild(div)
-    index += 1
     document.getElementById("fields_size").value = index
   })
 
@@ -1008,8 +1009,6 @@
 
   evtSource.onmessage = function (e) {
     const obj = JSON.parse(e.data);
-
-    console.log(obj.record)
 
     if (obj.record == 1) {
       buttonText.textContent = "Stop Recording"
@@ -1112,7 +1111,14 @@
       lat.disabled = false;
       lon.disabled = false;
     }
-    button1.disabled = !((tf_select.value != "") && (pf_select.value != "") && (validator.isURL(event.target.value))) && !((validator.isURL(event.target.value)) && (chosen_json_file.value != "")) && !((validator.isURL(event.target.value)) && (key.value != ""))
+    button1.disabled = ((pf_select.value == "") || (tf_select.value == "") || (url.value == "")) && ((chosen_json_file.value == "") || (url.value == "")) && ((key.value == "") || (url.value == "") || (lat.value == "") || (lon.value == ""))
+  });
+
+  lat.addEventListener("input", (event) => {
+    button1.disabled = (key.value == "") || (url.value == "") || (lat.value == "") || (lon.value == "")
+  });
+  lon.addEventListener("input", (event) => {
+    button1.disabled = (key.value == "") || (url.value == "") || (lat.value == "") || (lon.value == "")
   });
 
   json_file.addEventListener("change", (event) => {
