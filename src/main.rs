@@ -17,11 +17,11 @@ fn rocket() -> _ {
                 services::simulate,
                 services::index,
                 services::indexx,
-                services::handle_form_data,
                 services::upload,
                 services::notif,
                 services::stream,
                 services::record,
+                services::unit_test::test_int,
                 services::abort_thread
             ],
         )
