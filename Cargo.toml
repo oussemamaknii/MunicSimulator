@@ -37,8 +37,10 @@ rust_decimal = "1.29.1"
 num-traits = "0.2.15"
 byteorder = "1.4.3"
 base64 = "0.13.0"
-regex = "1.8.1"
 serde_urlencoded = "0.7"
+lazy_static = "1.4.0"
+humantime = "2.1"
+rand = "0.8.5"
 
 
 [dependencies.rocket_dyn_templates]

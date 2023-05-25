@@ -2,35 +2,37 @@
 
 extern crate chrono;
 extern crate rocket;
-use crate::models::{self, Base64, Presence, Tracks};
 use atomic_array::AtomicOptionRefArray;
 use bson::{doc, Bson, Document};
-use chrono::{DateTime, Local};
-use mongodb::Collection;
-use once_cell::sync::Lazy;
-use regex::Regex;
-use rocket::outcome::Outcome;
+use chrono::{DateTime, Local, Utc};
+pub mod unit_test;
+
+// use mongodb::Collection;
+mod utils;
+use google_maps::prelude::DirectionsResponse;
 use rocket::response::stream::{Event, EventStream};
+use rust_decimal::prelude::*;
+use std::f64::consts::PI;
+
 use rocket::response::Redirect;
-use rocket::{data, uri};
-use std::collections::HashMap;
+use rocket::uri;
+use serde_json::{json, to_value, Value};
+use std::fs::File;
 use std::fs::{self, OpenOptions};
+use std::io::Read;
 use std::sync::atomic::AtomicI8;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
-use tokio::io::AsyncReadExt;
 use tokio::task::JoinHandle;
 type GDirection = core::result::Result<
     google_maps::directions::response::Response,
     google_maps::directions::error::Error,
 >;
+use crate::models::{self, Base64, Presence, Tracks};
 use core::sync::atomic::{AtomicUsize, Ordering};
 use dotenvy::dotenv;
+use lazy_static::lazy_static;
 use models::{Eveent, Fields, Req};
-use mongodb::{
-    options::{ClientOptions, ResolverConfig},
-    Client,
-};
 use rocket::http::ContentType;
 use rocket::http::Status;
 use rocket::serde::json::Json;
@@ -40,23 +42,24 @@ use rocket_dyn_templates::{context, Template};
 use rocket_multipart_form_data::{
     mime, MultipartFormData, MultipartFormDataField, MultipartFormDataOptions,
 };
-use std::error::Error;
 use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
-use std::{env, mem, thread};
+use std::{env, thread};
 use tokio::time::{self, Duration};
-use url::Url;
 
-static THREADS: Lazy<
-    AtomicOptionRefArray<(
-        String,
-        JoinHandle<()>,
-        Sender<()>,
-        Sender<()>,
-        AtomicI8,
-        Sender<()>,
-    )>,
-> = Lazy::new(|| AtomicOptionRefArray::new(10));
+lazy_static! {
+    static ref THREADS: AtomicOptionRefArray<(
+        String, // url
+        JoinHandle<()>, // main thread
+        Sender<()>, // track sender
+        Sender<()>, // presence sender
+        AtomicI8, // request status
+        Sender<()>, //replay sender
+        Mutex<String>, // request err message
+        Mutex<String>, // request ok message
+        Mutex<String>, // timestamp string
+    )> = AtomicOptionRefArray::new(10);
+}
 
 static INDEX: AtomicUsize = AtomicUsize::new(0);
 
@@ -72,6 +75,7 @@ pub fn record() {
         RECORD.store(0, Ordering::Relaxed);
     }
 }
+
 #[post("/", format = "json", data = "<json_data>")]
 pub async fn notif(json_data: Json<serde_json::Value>) -> rocket::response::status::Custom<String> {
     if RECORD.load(Ordering::Relaxed) == 1 {
@@ -102,12 +106,12 @@ pub async fn notif(json_data: Json<serde_json::Value>) -> rocket::response::stat
             .count();
 
         // Construct the file name with the format "trip_%i_%date.json"
-        let file_name: String;
-        if file_count == 0 {
-            file_name = format!("{}{}_{}{}", prefix, file_count + 1, date, file_extension);
+        let file_name: String = if file_count == 0 {
+            format!("{}{}_{}{}", prefix, file_count + 1, date, file_extension)
         } else {
-            file_name = format!("{}{}_{}{}", prefix, file_count, date, file_extension);
-        }
+            format!("{}{}_{}{}", prefix, file_count, date, file_extension)
+        };
+
         let file_path = PathBuf::from(dir_path).join(file_name);
 
         // Check if the file already exists
@@ -151,7 +155,7 @@ pub async fn notif(json_data: Json<serde_json::Value>) -> rocket::response::stat
                                         let mut byte_array = serde_json::to_vec(&json_obj).unwrap();
                                         byte_array.push(b']');
 
-                                        file.write(&byte_array[..])
+                                        file.write_all(&byte_array[..])
                                             .expect("failed to write to file");
                                         START.store(0, Ordering::Relaxed);
                                     }
@@ -244,7 +248,7 @@ pub async fn notif(json_data: Json<serde_json::Value>) -> rocket::response::stat
                                             byte_array.push(b']');
 
                                             new_file
-                                                .write(&byte_array[..])
+                                                .write_all(&byte_array[..])
                                                 .expect("failed to write to file");
                                             START.store(0, Ordering::Relaxed);
                                         }
@@ -258,7 +262,7 @@ pub async fn notif(json_data: Json<serde_json::Value>) -> rocket::response::stat
                                     byte_array.push(b',');
 
                                     new_file
-                                        .write(&byte_array[..])
+                                        .write_all(&byte_array[..])
                                         .expect("failed to write to file");
                                 }
                             }
@@ -299,7 +303,7 @@ pub async fn notif(json_data: Json<serde_json::Value>) -> rocket::response::stat
                                                 serde_json::to_vec(&json_obj).unwrap();
                                             byte_array.push(b']');
 
-                                            file.write(&byte_array[..])
+                                            file.write_all(&byte_array[..])
                                                 .expect("failed to write to file");
                                             START.store(0, Ordering::Relaxed);
                                         }
@@ -366,7 +370,7 @@ pub async fn notif(json_data: Json<serde_json::Value>) -> rocket::response::stat
                                     let mut byte_array = serde_json::to_vec(&json_obj).unwrap();
                                     byte_array.push(b']');
 
-                                    file.write(&byte_array[..])
+                                    file.write_all(&byte_array[..])
                                         .expect("failed to write to file");
                                     START.store(0, Ordering::Relaxed);
                                 }
@@ -443,165 +447,86 @@ pub async fn upload(content_type: &ContentType, data: Data<'_>) -> Redirect {
     Redirect::to(uri!(index("File stored Successfully!")))
 }
 
-#[post("/form-data", data = "<data>")]
-pub async fn handle_form_data(
-    content_type: &ContentType,
-    data: Data<'_>,
-) -> Result<String, std::io::Error> {
-    use multipart::server::Multipart;
-    use rocket::data::ByteUnit;
-    use rocket::tokio::io::AsyncReadExt;
-    use std::io::Cursor;
-    if let Some(boundary) =
-        content_type
-            .params()
-            .find_map(|(k, v)| if k == "boundary" { Some(v) } else { None })
-    {
-        // Read the data into a Vec<u8>
-        let mut buffer = Vec::new();
-        data.open(ByteUnit::default())
-            .read_to_end(&mut buffer)
-            .await?;
-
-        // Create a Multipart instance using the boundary
-        let mut multipart = Multipart::with_body(Cursor::new(buffer), boundary);
-
-        // Iterate over the fields
-        while let Some(mut field) = multipart.read_entry().unwrap() {
-            let field_name = field.headers.name.clone();
-            let mut field_data = Vec::new();
-            field.data.read_to_end(&mut field_data).unwrap();
-
-            // Process the field data as needed
-            println!("Field name: {}", field_name);
-            println!("Field data: {:?}", field_data);
-        }
-
-        Ok("Form data processed successfully".to_string())
-    } else {
-        Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidInput,
-            "Invalid content type",
-        ))
-    }
-}
-
 #[post("/simulate", data = "<user_input>")]
 pub async fn simulate(content_type: &ContentType, user_input: Data<'_>) -> Redirect {
     let options = MultipartFormDataOptions::with_multipart_form_data_fields(vec![
         MultipartFormDataField::text("url"),
-        MultipartFormDataField::text("lon"),
-        MultipartFormDataField::text("lat"),
+        MultipartFormDataField::text("destination"),
+        MultipartFormDataField::text("source"),
         MultipartFormDataField::text("key"),
-        MultipartFormDataField::text("track_option"),
-        MultipartFormDataField::text("presence_option"),
         MultipartFormDataField::text("chosen_json_file"),
-        MultipartFormDataField::text("track_file"),
-        MultipartFormDataField::text("presence_file"),
-        MultipartFormDataField::text("field_name_0"),
-        MultipartFormDataField::text("field_name_1"),
-        MultipartFormDataField::text("field_name_2"),
-        MultipartFormDataField::text("field_name_3"),
-        MultipartFormDataField::text("field_name_4"),
+        MultipartFormDataField::text("fields_size"),
+        MultipartFormDataField::text("fields_data"),
     ]);
 
     let mut multipart_form_data = MultipartFormData::parse(content_type, user_input, options)
         .await
         .unwrap();
 
-    let mut extracted_fields = Vec::new();
-    let pattern = Regex::new(r"field_name_\d+").unwrap();
+    let url = multipart_form_data.texts.remove("url");
+    let mut url_text: String = "".to_string();
+    let mut url_thread: String = "".to_string();
+    let destination = multipart_form_data.texts.remove("destination");
+    let mut destination_text: String = "".to_string();
+    let source = multipart_form_data.texts.remove("source");
+    let mut source_text: String = "".to_string();
+    let chosen_json_file = multipart_form_data.texts.remove("chosen_json_file");
+    let mut chosen_json_file_text: String = "".to_string();
+    let key = multipart_form_data.texts.remove("key");
+    let mut key_text: String = "".to_string();
+    let custom_fields = multipart_form_data.texts.remove("fields_data");
+    let mut custom_fields_json: Vec<Value> = Vec::new();
+    let fields_size = multipart_form_data.texts.remove("fields_size");
 
-    for (key, value) in multipart_form_data.texts.iter() {
-        if pattern.is_match(&key) {
-            extracted_fields.push((key.clone(), value[0].text.clone()));
+    if let Some(mut custom_fields) = custom_fields {
+        let text_field = custom_fields.remove(0);
+
+        let _content_type = text_field.content_type;
+        let _file_name = text_field.file_name;
+        let _text = text_field.text;
+        if _text != "" {
+            let json_array: Vec<Value> =
+                serde_json::from_str(&_text).expect("Failed to parse JSON array");
+
+            custom_fields_json = json_array;
         }
     }
-    println!("{:?}", extracted_fields);
 
-    let url_text = multipart_form_data.texts.remove("url");
-    let mut turl_text: String = "".to_string();
-    let mut turl_thread: String = "".to_string();
-    let lon_text = multipart_form_data.texts.remove("lon");
-    let mut tlon_text: String = "".to_string();
-    let lat_text = multipart_form_data.texts.remove("lat");
-    let mut tlat_text: String = "".to_string();
-    let track_option = multipart_form_data.texts.remove("track_option");
-    let mut ttrack_option: String = "".to_string();
-    let presence_option = multipart_form_data.texts.remove("presence_option");
-    let mut tpresence_option: String = "".to_string();
-    let track_file = multipart_form_data.texts.remove("track_file");
-    let mut ttrack_file: String = "".to_string();
-    let presence_file = multipart_form_data.texts.remove("presence_file");
-    let mut tpresence_file: String = "".to_string();
-    let chosen_json_file = multipart_form_data.texts.remove("chosen_json_file");
-    let mut tchosen_json_file: String = "".to_string();
-    let key = multipart_form_data.texts.remove("key");
-    let mut tkey: String = "".to_string();
-
-    if let Some(mut url_text) = url_text {
-        let text_field = url_text.remove(0);
+    if let Some(mut fields_size) = fields_size {
+        let text_field = fields_size.remove(0);
 
         let _content_type = text_field.content_type;
         let _file_name = text_field.file_name;
         let _text = text_field.text;
-
-        turl_thread = _text.clone();
-        turl_text = _text;
     }
-    if let Some(mut lon_text) = lon_text {
-        let text_field = lon_text.remove(0);
+
+    if let Some(mut url) = url {
+        let text_field = url.remove(0);
 
         let _content_type = text_field.content_type;
         let _file_name = text_field.file_name;
         let _text = text_field.text;
 
-        tlon_text = _text;
+        url_thread = _text.clone();
+        url_text = _text;
     }
-    if let Some(mut lat_text) = lat_text {
-        let text_field = lat_text.remove(0);
+    if let Some(mut destination) = destination {
+        let text_field = destination.remove(0);
 
         let _content_type = text_field.content_type;
         let _file_name = text_field.file_name;
         let _text = text_field.text;
 
-        tlat_text = _text;
+        destination_text = _text;
     }
-    if let Some(mut track_option) = track_option {
-        let text_field = track_option.remove(0);
+    if let Some(mut source) = source {
+        let text_field = source.remove(0);
 
         let _content_type = text_field.content_type;
         let _file_name = text_field.file_name;
         let _text = text_field.text;
 
-        ttrack_option = _text;
-    }
-    if let Some(mut presence_option) = presence_option {
-        let text_field = presence_option.remove(0);
-
-        let _content_type = text_field.content_type;
-        let _file_name = text_field.file_name;
-        let _text = text_field.text;
-
-        tpresence_option = _text;
-    }
-    if let Some(mut track_file) = track_file {
-        let text_field = track_file.remove(0);
-
-        let _content_type = text_field.content_type;
-        let _file_name = text_field.file_name;
-        let _text = text_field.text;
-
-        ttrack_file = _text;
-    }
-    if let Some(mut presence_file) = presence_file {
-        let text_field = presence_file.remove(0);
-
-        let _content_type = text_field.content_type;
-        let _file_name = text_field.file_name;
-        let _text = text_field.text;
-
-        tpresence_file = _text;
+        source_text = _text;
     }
     if let Some(mut key) = key {
         let text_field = key.remove(0);
@@ -610,7 +535,7 @@ pub async fn simulate(content_type: &ContentType, user_input: Data<'_>) -> Redir
         let _file_name = text_field.file_name;
         let _text = text_field.text;
 
-        tkey = _text;
+        key_text = _text;
     }
     if let Some(mut chosen_json_file) = chosen_json_file {
         let text_field = chosen_json_file.remove(0);
@@ -619,48 +544,27 @@ pub async fn simulate(content_type: &ContentType, user_input: Data<'_>) -> Redir
         let _file_name = text_field.file_name;
         let _text = text_field.text;
 
-        tchosen_json_file = _text;
+        chosen_json_file_text = _text;
     }
 
-    let mut exists: bool = false;
+    let mut url_exists: bool = false;
 
     for index in 0..THREADS.len() {
         match THREADS.load(index) {
             Some(e) => {
-                if e.0 == turl_text {
-                    exists = true;
+                if e.0 == url_text {
+                    url_exists = true;
                     break;
                 } else {
-                    exists = false;
+                    url_exists = false;
                 }
             }
-            None => exists = false,
+            None => url_exists = false,
         };
     }
 
-    if ping_server(turl_text.clone()) && !exists {
+    if utils::ping_server(url_text.clone()) && !url_exists {
         tokio::spawn(async move {
-            if ttrack_option.len() != 10 {
-                if ttrack_option.match_indices('-').nth(1) == Some((6, "-")) {
-                    ttrack_option.insert(5, '0');
-                }
-                if ttrack_option.match_indices('-').nth(1) == Some((7, "-"))
-                    && ttrack_option.len() != 10
-                {
-                    ttrack_option.insert(8, '0');
-                }
-            }
-
-            if tpresence_option.len() != 10 {
-                if tpresence_option.match_indices('-').nth(1) == Some((6, "-")) {
-                    tpresence_option.insert(5, '0');
-                }
-                if tpresence_option.match_indices('-').nth(1) == Some((7, "-"))
-                    && tpresence_option.len() != 10
-                {
-                    tpresence_option.insert(8, '0');
-                }
-            }
             // use futures::future::join_all;
             // let mut handles = vec![];
 
@@ -668,49 +572,52 @@ pub async fn simulate(content_type: &ContentType, user_input: Data<'_>) -> Redir
             let (psender, preceiver) = channel();
             let (replay_sender, replay_receiver) = channel();
 
-            let cloned_url = turl_text.clone();
+            let cloned_url = url_text.clone();
 
             let worker = tokio::spawn(async move {
                 use futures::future::join_all;
                 let mut handles = vec![];
                 use google_maps::prelude::*;
 
-                if !tkey.is_empty() {
-                    let google_maps_client = GoogleMapsClient::new(&tkey);
-                    let directions = google_maps_client
+                if !key_text.is_empty() {
+                    let google_maps_client = GoogleMapsClient::new(&key_text);
+                    if let Ok(directions) = google_maps_client
                         .directions(
-                            Location::Address(tlat_text),
-                            Location::Address(tlon_text),
+                            Location::Address(source_text),
+                            Location::Address(destination_text),
                             // Location::LatLng(LatLng::try_from_f64(45.403_509, -75.618_904).unwrap()),
                         )
                         .with_travel_mode(TravelMode::Driving)
                         .execute()
+                        .await
+                    {
+                        simulation(
+                            directions,
+                            &key_text,
+                            &url_text,
+                            custom_fields_json,
+                            treceiver,
+                            preceiver,
+                        )
                         .await;
-
-                    simulation(
-                        directions,
-                        &tkey,
-                        &turl_text,
-                        &ttrack_option,
-                        &tpresence_option,
-                        &ttrack_file,
-                        &tpresence_file,
-                        treceiver,
-                        preceiver,
-                    )
-                    .await;
-                } else if !tchosen_json_file.is_empty() {
+                    } else {
+                        println!("here");
+                        Redirect::to(uri!(index(
+                            "Invalid API_KEY check the Documentation for setting one !"
+                        )));
+                    }
+                } else if !chosen_json_file_text.is_empty() {
                     let replay_worker = tokio::spawn(async move {
-                        replay_one_file(&turl_text.clone(), &tchosen_json_file, replay_receiver)
+                        replay_one_file(&url_text.clone(), &chosen_json_file_text, replay_receiver)
                             .await;
                     });
                     handles.push(replay_worker);
                 } else {
                     replay(
-                        &turl_text.clone(),
-                        &ttrack_option,
+                        &url_text.clone(),
                         &"2023-02-08".to_string(),
-                        &ttrack_file,
+                        &"2023-02-08".to_string(),
+                        &"tracks.json".to_string(),
                         &"presence.json".to_string(),
                         treceiver,
                         preceiver,
@@ -734,12 +641,15 @@ pub async fn simulate(content_type: &ContentType, user_input: Data<'_>) -> Redir
             THREADS.store(
                 INDEX.load(Ordering::Relaxed),
                 (
-                    turl_thread,
+                    url_thread,
                     worker,
                     tsender,
                     psender,
                     AtomicI8::new(1),
                     replay_sender,
+                    Mutex::new(String::from("")),
+                    Mutex::new(String::from("")),
+                    Mutex::new(String::from("")),
                 ),
             );
             INDEX.store(INDEX.load(Ordering::Relaxed) + 1, Ordering::Relaxed);
@@ -755,30 +665,8 @@ pub async fn simulate(content_type: &ContentType, user_input: Data<'_>) -> Redir
     Redirect::to(uri!(index("Didn't receive a Pong or url already is use !")))
 }
 
-fn read_json_array_from_file(file_path: &str) -> serde_json::Result<Vec<Value>> {
-    dotenv().ok();
-    let mut file = File::open(format!(
-        "{}{}{}",
-        env::var("DIR").unwrap(),
-        "uploads/",
-        file_path
-    ))
-    .unwrap();
-    let mut contents = String::new();
-    file.read_to_string(&mut contents).unwrap();
-    let json_value: Value = serde_json::from_str(&contents).unwrap();
-    let array = json_value
-        .as_array()
-        .ok_or_else(|| println!("Not a JSON array"))
-        .unwrap();
-    Ok(array.to_vec())
-}
-use serde_json::{json, Value};
-use std::fs::File;
-use std::io::Read;
-
-pub async fn replay_one_file(url: &String, path: &String, receiver: Receiver<()>) {
-    let data_array = read_json_array_from_file(path).unwrap();
+pub async fn replay_one_file(url: &String, path: &str, receiver: Receiver<()>) {
+    let data_array = utils::read_json_array_from_file(path).unwrap();
 
     let mut missed_data: Vec<Value> = vec![];
 
@@ -838,34 +726,67 @@ pub async fn replay_one_file(url: &String, path: &String, receiver: Receiver<()>
         let res = builder.send().await;
 
         match res {
-            Ok(_a) => match current_status {
-                1 => continue,
+            Ok(resp) => match current_status {
+                1 => {
+                    for index in 0..THREADS.len() {
+                        if let Some(threads_ref) = THREADS.load(index) {
+                            if threads_ref.0 == *url {
+                                let mut ok_msg = threads_ref.7.lock().unwrap();
+                                *ok_msg = resp.status().to_string();
+
+                                let mut time_msg = threads_ref.8.lock().unwrap();
+                                *time_msg = Local::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+                            }
+                        }
+                    }
+                    continue;
+                }
                 0 => {
                     missed_data = vec![];
                     current_status = 1;
                     for index in 0..THREADS.len() {
-                        if let Some(e) = THREADS.load(index) {
-                            if e.0 == *url {
-                                e.4.store(current_status, Ordering::Relaxed);
+                        if let Some(threads_ref) = THREADS.load(index) {
+                            if threads_ref.0 == *url {
+                                threads_ref.4.store(current_status, Ordering::Relaxed);
+                                let mut ok_msg = threads_ref.7.lock().unwrap();
+                                *ok_msg = resp.status().to_string();
+                                let mut time_msg = threads_ref.8.lock().unwrap();
+                                *time_msg = Local::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
                             }
                         }
                     }
                 }
                 _ => continue,
             },
-            Err(_err) => match current_status {
+            Err(err) => match current_status {
                 1 => {
                     missed_data.push(json_value);
                     current_status = 0;
                     for index in 0..THREADS.len() {
-                        if let Some(e) = THREADS.load(index) {
-                            if e.0 == *url {
-                                e.4.store(current_status, Ordering::Relaxed);
+                        if let Some(threads_ref) = THREADS.load(index) {
+                            if threads_ref.0 == *url {
+                                threads_ref.4.store(current_status, Ordering::Relaxed);
+                                let mut msg_err = threads_ref.6.lock().unwrap();
+                                *msg_err = err.to_string();
+                                let mut time_msg = threads_ref.8.lock().unwrap();
+                                *time_msg = Local::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
                             }
                         }
                     }
                 }
-                0 => missed_data.push(json_value),
+                0 => {
+                    for index in 0..THREADS.len() {
+                        if let Some(threads_ref) = THREADS.load(index) {
+                            if threads_ref.0 == *url {
+                                let mut msg_err = threads_ref.6.lock().unwrap();
+                                *msg_err = err.to_string();
+                                let mut time_msg = threads_ref.8.lock().unwrap();
+                                *time_msg = Local::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+                            }
+                        }
+                    }
+                    missed_data.push(json_value)
+                }
                 _ => continue,
             },
         }
@@ -881,69 +802,48 @@ pub async fn replay_one_file(url: &String, path: &String, receiver: Receiver<()>
 }
 
 async fn simulation(
-    directions: GDirection,
-    api_key: &String,
+    directions: google_maps::directions::response::Response,
+    api_key: &str,
     url: &String,
-    track_option: &String,
-    presence_option: &String,
-    track_file: &String,
-    presence_file: &String,
+    mut custom_fields: Vec<Value>,
     treceiver: Receiver<()>,
     preceiver: Receiver<()>,
 ) {
-    let client = get_client().await.unwrap();
+    dotenv().ok();
+    let mut file = File::open(format!(
+        "{}{}",
+        env::var("DIR").unwrap(),
+        "uploads/refrence.json"
+    ))
+    .expect("Failed to open the JSON file");
 
-    let tracks_collection = client.database("munic").collection::<Tracks>("tracks");
+    let mut contents = String::new();
+    file.read_to_string(&mut contents)
+        .expect("Failed to read the JSON file");
 
-    let tpipeline = vec![
-        doc! {"$addFields": { "date": { "$toDate": "$recorded_at" } }  },
-        doc! {"$addFields": { "subs": {"$substr": [ "$recorded_at", 0, 10 ]} }},
-        doc! {
-            "$match": { "subs" :  {"$eq": track_option} }
-        },
-        doc! {
-            "$match": { "file" :  {"$eq": track_file} }
-        },
-        doc! {"$sort": { "date" : 1 }},
-    ];
+    let json_values: Vec<Value> = serde_json::from_str(&contents).expect("Failed to parse JSON");
 
-    let presence_collection = client.database("munic").collection::<Presence>("presences");
+    let filtered_presences: Vec<Value> = json_values
+        .clone()
+        .into_iter()
+        .filter(|event| event["meta"]["event"] == "presence")
+        .collect();
 
-    let ppipeline = vec![
-        doc! {"$addFields": { "date": { "$toDate": "$time" } }  },
-        doc! {"$addFields": { "subs": {"$substr": [ "$time", 0, 10 ]} }},
-        doc! {
-            "$match": { "subs" :  {"$eq": presence_option} }
-        },
-        doc! {
-            "$match": { "file" :  {"$eq": presence_file} }
-        },
-        doc! {"$sort": { "date" : 1 }},
-    ];
+    let filtered_tracks: Vec<Value> = json_values
+        .into_iter()
+        .filter(|event| event["meta"]["event"] == "track")
+        .collect();
 
-    let tracks_data = tracks_collection
-        .aggregate(tpipeline, None)
-        .await
-        .map_err(|e| println!("{}", e))
-        .unwrap();
-    let presence_data = presence_collection
-        .aggregate(ppipeline, None)
-        .await
-        .map_err(|e| println!("{}", e))
-        .unwrap();
+    let mut presences: Vec<Presence> = Vec::new();
+    let mut ref_track: Tracks = serde_json::from_value::<Req<Tracks>>(filtered_tracks[0].clone())
+        .unwrap()
+        .payload;
 
-    use futures::stream::TryStreamExt;
-
-    let tracks: Vec<_> = tracks_data
-        .try_collect()
-        .await
-        .map_err(|e| println!("{}", e))
-        .unwrap();
-    let presences: Vec<_> = presence_data
-        .try_collect()
-        .await
-        .map_err(|e| println!("{}", e))
-        .unwrap();
+    for json_value in filtered_presences {
+        if let Ok(req) = serde_json::from_value::<Req<Presence>>(json_value.clone()) {
+            presences.push(req.payload);
+        }
+    }
 
     let track_client = reqwest::Client::new();
     let presence_client = reqwest::Client::new();
@@ -956,23 +856,24 @@ async fn simulation(
     let presence_worker = tokio::spawn(async move {
         simulate_presences(&url_clone, presences, presence_client, preceiver).await;
     });
-    let api_key_clone = api_key.clone();
+    let api_key_clone = api_key.to_owned();
 
     let track_worker = tokio::spawn(async move {
         simulate_tracks(
             directions,
             api_key_clone,
             &url_clonee,
-            tracks,
+            &mut ref_track,
             track_client,
+            &mut custom_fields,
             treceiver,
         )
         .await;
     });
 
-    handles.push(presence_worker);
-
     handles.push(track_worker);
+
+    handles.push(presence_worker);
 
     join_all(handles).await;
 
@@ -988,18 +889,17 @@ async fn simulation(
 }
 
 async fn simulate_tracks(
-    directions: GDirection,
+    directions: DirectionsResponse,
     api_key: String,
     url: &String,
-    tracks: Vec<Document>,
+    mut ref_track: &mut Tracks,
     client: reqwest::Client,
+    custom_fields: &mut Vec<Value>,
     receiver: Receiver<()>,
 ) {
     use google_maps::prelude::*;
 
-    let json_data = &directions.unwrap().routes[0].legs[0];
-
-    let mut index = 0;
+    let json_data = &directions.routes[0].legs[0];
 
     let mut tracks_array: Vec<Req<Tracks>> = vec![];
 
@@ -1008,6 +908,12 @@ async fn simulate_tracks(
     let mut first = true;
 
     let mut start_time = Instant::now();
+
+    let start_custom_fields_time = Instant::now();
+
+    let mut last_int_value: i16 = 0;
+
+    let mut first_custom_fields = true;
 
     'outer: for step in &json_data.steps {
         use geo::CoordsIter;
@@ -1052,28 +958,19 @@ async fn simulate_tracks(
 
             start = (coord.y, coord.x);
 
-            let mut track = Tracks {
-                id: tracks[index].get_i64("id").unwrap(),
-                id_str: Some(tracks[index].get_str("id_str").unwrap().to_string()),
-                location: Some([coord.x, coord.y]),
-                loc: Some([coord.x, coord.y]),
-                asset: Some(tracks[index].get_str("asset").unwrap().to_string()),
-                recorded_at: Some(
-                    (Local::now() - Duration::minutes(2))
-                        .format("%Y-%m-%dT%H:%M:%SZ")
-                        .to_string(),
-                ),
-                recorded_at_ms: Some(
-                    (Local::now() - Duration::minutes(2))
-                        .format("%Y-%m-%dT%H:%M:%S%.3fZ")
-                        .to_string(),
-                ),
-                received_at: Some((Local::now()).format("%Y-%m-%dT%H:%M:%SZ").to_string()),
-                connection_id: tracks[index].get_i64("connection_id").unwrap(),
-                index: tracks[index].get_i64("index").unwrap(),
-                fields: Fields::from(tracks[index].get_document("fields").unwrap()),
-                url: Some(tracks[index].get_str("url").unwrap().to_string()),
-            };
+            ref_track.location = Some([coord.x, coord.y]);
+            ref_track.loc = Some([coord.x, coord.y]);
+            ref_track.recorded_at = Some(
+                (Local::now() - Duration::minutes(2))
+                    .format("%Y-%m-%dT%H:%M:%SZ")
+                    .to_string(),
+            );
+            ref_track.recorded_at_ms = Some(
+                (Local::now() - Duration::minutes(2))
+                    .format("%Y-%m-%dT%H:%M:%S%.3fZ")
+                    .to_string(),
+            );
+            ref_track.received_at = Some((Local::now()).format("%Y-%m-%dT%H:%M:%SZ").to_string());
 
             let alt_url = format!(
                 "https://maps.googleapis.com/maps/api/elevation/json?locations={},{}&key={}",
@@ -1089,25 +986,25 @@ async fn simulate_tracks(
 
             if response.status == ElevationStatus::Ok {
                 let result = &response.results.unwrap()[0];
-                track.fields.gps_altitude = Some(Base64 {
-                    b64_value: Some(float64_to_base64(result.elevation)),
+                ref_track.fields.gps_altitude = Some(Base64 {
+                    b64_value: Some(utils::float64_to_base64(result.elevation)),
                 });
             }
 
-            track.fields.gps_speed = Some(Base64 {
-                b64_value: Some(float64_to_base64(gps_speed)),
+            ref_track.fields.gps_speed = Some(Base64 {
+                b64_value: Some(utils::float64_to_base64(gps_speed)),
             });
-            track.fields.gps_dir = Some(Base64 {
-                b64_value: Some(float64_to_base64(direction)),
+            ref_track.fields.gps_dir = Some(Base64 {
+                b64_value: Some(utils::float64_to_base64(direction)),
             });
-            track.fields.dio_ignition = Some(Base64 {
-                b64_value: Some(bool_to_base64(true)),
+            ref_track.fields.dio_ignition = Some(Base64 {
+                b64_value: Some(utils::bool_to_base64(true)),
             });
-            track.fields.obd_connected_protocol = Some(Base64 {
-                b64_value: Some(int_to_base64(6)),
+            ref_track.fields.obd_connected_protocol = Some(Base64 {
+                b64_value: Some(utils::int_to_base64(6)),
             });
-            track.fields.mdi_journey_state = Some(Base64 {
-                b64_value: Some(bool_to_base64(true)),
+            ref_track.fields.mdi_journey_state = Some(Base64 {
+                b64_value: Some(utils::bool_to_base64(true)),
             });
 
             tracks_array.push(Req {
@@ -1115,52 +1012,107 @@ async fn simulate_tracks(
                     event: "track".to_string(),
                     account: "municio".to_string(),
                 },
-                payload: track.clone(),
+                payload: ref_track.clone(),
             });
 
             if start_time.elapsed() > std::time::Duration::from_secs(11) {
                 println!("sending tracks...");
 
-                let res = client.post(url).json(&tracks_array).send().await;
+                let mut tracks_array_value: Vec<Value> = tracks_array
+                    .clone()
+                    .into_iter()
+                    .map(|s| to_value(s).unwrap())
+                    .collect();
 
-                index += 1;
+                if !custom_fields.is_empty() {
+                    let current_time = Instant::now();
+                    add_custom_fields(
+                        &mut tracks_array_value,
+                        custom_fields,
+                        start_custom_fields_time,
+                        current_time,
+                        &mut first_custom_fields,
+                        &mut last_int_value,
+                    );
+                }
+
+                let res = client.post(url).json(&tracks_array_value).send().await;
 
                 start_time = Instant::now();
 
+                let mut threads_ref: Option<
+                    Arc<(
+                        String,
+                        JoinHandle<()>,
+                        Sender<()>,
+                        Sender<()>,
+                        AtomicI8,
+                        Sender<()>,
+                        Mutex<String>,
+                        Mutex<String>,
+                        Mutex<String>,
+                    )>,
+                > = None;
+
+                for index in 0..THREADS.len() {
+                    if let Some(threads_reference) = THREADS.load(index) {
+                        if threads_reference.0 == *url {
+                            // udate current_status because it could be changed from the presence thread
+                            current_status = threads_reference.4.load(Ordering::Relaxed);
+                            threads_ref = Some(threads_reference);
+                            break;
+                        }
+                    }
+                }
+
                 match res {
-                    Ok(_a) => match current_status {
+                    Ok(resp) => match current_status {
                         1 => {
                             tracks_array = vec![];
+                            if let Some(ref threads_ref) = threads_ref {
+                                let mut ok_msg = threads_ref.7.lock().unwrap();
+                                *ok_msg = resp.status().to_string();
+                                let mut time_msg = threads_ref.8.lock().unwrap();
+                                *time_msg = Local::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+                            }
                             continue;
                         }
                         0 => {
                             tracks_array = vec![];
                             current_status = 1;
-                            for index in 0..THREADS.len() {
-                                if let Some(e) = THREADS.load(index) {
-                                    if e.0 == *url {
-                                        e.4.store(current_status, Ordering::Relaxed);
-                                    }
-                                }
+                            if let Some(ref threads_ref) = threads_ref {
+                                threads_ref.4.store(current_status, Ordering::Relaxed);
+                                let mut ok_msg = threads_ref.7.lock().unwrap();
+                                *ok_msg = resp.status().to_string();
+                                let mut time_msg = threads_ref.8.lock().unwrap();
+                                *time_msg = Local::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
                             }
                         }
                         _ => continue,
                     },
-                    Err(_err) => match current_status {
+                    Err(err) => match current_status {
                         1 => {
                             current_status = 0;
                             if tracks_array.len() == 20 {
                                 break 'outer;
                             }
-                            for index in 0..THREADS.len() {
-                                if let Some(e) = THREADS.load(index) {
-                                    if e.0 == *url {
-                                        e.4.store(current_status, Ordering::Relaxed);
-                                    }
-                                }
+
+                            if let Some(ref threads_ref) = threads_ref {
+                                threads_ref.4.store(current_status, Ordering::Relaxed);
+                                let mut msg_err = threads_ref.6.lock().unwrap();
+                                *msg_err = err.to_string();
+                                let mut time_msg = threads_ref.8.lock().unwrap();
+                                *time_msg = Local::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
                             }
                         }
                         0 => {
+                            if let Some(ref threads_ref) = threads_ref {
+                                let mut msg_err = threads_ref.6.lock().unwrap();
+                                *msg_err = err.to_string();
+                                let mut time_msg = threads_ref.8.lock().unwrap();
+                                *time_msg = Local::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+                            }
+
                             if tracks_array.len() == 20 {
                                 break 'outer;
                             }
@@ -1174,15 +1126,96 @@ async fn simulate_tracks(
     println!("Shuting down tracks simulation the Handler thread!!")
 }
 
+fn add_custom_fields(
+    tracks_array: &mut Vec<Value>,
+    custom_fields: &mut Vec<Value>,
+    start_time: Instant,
+    current_time: Instant,
+    first: &mut bool,
+    last: &mut i16,
+) {
+    use humantime::parse_duration;
+
+    for update_data in custom_fields.iter_mut() {
+        let elapsed_time = if let Some(last_updated) =
+            utils::parse_instant_from_string(update_data["last_updated"].as_str())
+        {
+            current_time.duration_since(last_updated)
+        } else {
+            current_time.duration_since(start_time)
+        };
+
+        if let Ok(frequence) = parse_duration(update_data["frequence"].as_str().unwrap()) {
+            if elapsed_time >= frequence {
+                for struct_to_update in &mut *tracks_array {
+                    if let Some(object) = update_data["type"].as_object() {
+                        if object.contains_key("bool") {
+                            struct_to_update["payload"]["fields"]
+                                [update_data["field_name"].as_str().unwrap().to_uppercase()] = json!({"b64_value" :utils::bool_to_base64(update_data["type"]["bool"].as_str().unwrap().parse::<bool>().unwrap())});
+                        }
+                        if object.contains_key("int") {
+                            struct_to_update["payload"]["fields"]
+                                [update_data["field_name"].as_str().unwrap().to_uppercase()] =
+                                json!(
+                            {"b64_value" : utils::int_to_base64(utils::get_int_value(
+                                update_data["type"]["int"]["min"]
+                                    .as_i64()
+                                    .unwrap() as i16,
+                                update_data["type"]["int"]["max"]
+                                    .as_i64()
+                                    .unwrap() as i16,
+                                update_data["type"]["int"]["deviation"]
+                                    .as_i64()
+                                    .unwrap() as i16,
+                                first,
+                                last,
+                            ).into())});
+                        }
+                        if object.contains_key("string") {
+                            if let Some(size) = update_data["type"]["string"]["random"].as_i64() {
+                                struct_to_update["payload"]["fields"]
+                                    [update_data["field_name"].as_str().unwrap().to_uppercase()] = json!({
+                                    "b64_value": base64::encode(utils::generate_string(size))
+                                });
+                            } else if let Some(array) =
+                                update_data["type"]["string"]["array"].as_array()
+                            {
+                                struct_to_update["payload"]["fields"]
+                                    [update_data["field_name"].as_str().unwrap().to_uppercase()] =
+                                    if let Some(string) = utils::get_random_string_element(array) {
+                                        json!({ "b64_value": base64::encode(string) })
+                                    } else {
+                                        Value::Null
+                                    }
+                            }
+                        }
+                    } else {
+                        println!("'type' is not an object");
+                    }
+                }
+
+                let time = Utc::now();
+
+                let datetime_str = time.to_rfc3339();
+
+                update_data["last_updated"] = serde_json::to_value(Some(datetime_str))
+                    .expect("error updating last updated time !!");
+            }
+        } else {
+            println!("can't parse frequence !");
+        }
+    }
+}
+
 async fn simulate_presences(
     url: &String,
-    presences: Vec<Document>,
+    presences: Vec<Presence>,
     presence_client: reqwest::Client,
     receiver: Receiver<()>,
 ) {
     let mut presences_array: Vec<Req<Presence>> = vec![];
 
-    let mut old_pres: Document = Document::new();
+    let mut old_pres = Presence::new();
 
     let mut first = true;
 
@@ -1193,8 +1226,8 @@ async fn simulate_presences(
             time::sleep(Duration::from_secs_f32(0.1)).await;
             first = false;
         } else {
-            let t1 = DateTime::parse_from_rfc3339(presence.get_str("time").unwrap()).unwrap();
-            let t2 = DateTime::parse_from_rfc3339(old_pres.get_str("time").unwrap()).unwrap();
+            let t1 = DateTime::parse_from_rfc3339(&presence.clone().time.unwrap()).unwrap();
+            let t2 = DateTime::parse_from_rfc3339(&old_pres.time.unwrap()).unwrap();
 
             let elapsed_seconds = t1.timestamp() - t2.timestamp();
 
@@ -1225,43 +1258,7 @@ async fn simulate_presences(
                         event: "presence".to_string(),
                         account: "municio".to_string(),
                     },
-                    payload: Presence {
-                        id: presence.get_i64("id").unwrap(),
-                        connection_id: presence.get_i64("connection_id").unwrap(),
-                        id_str: match presence.get_str("id_str") {
-                            Ok(e) => Some(e.to_string()),
-                            Err(_) => Some(String::new()).filter(|s| !s.is_empty()),
-                        },
-                        typ: match presence.get_str("type") {
-                            Ok(e) => Some(e.to_string()),
-                            Err(_) => Some(String::new()).filter(|s| !s.is_empty()),
-                        },
-                        fullreason: match presence.get_str("fullreason") {
-                            Ok(e) => Some(e.to_string()),
-                            Err(_) => Some(String::new()).filter(|s| !s.is_empty()),
-                        },
-                        cs: match presence.get_str("cs") {
-                            Ok(e) => Some(e.to_string()),
-                            Err(_) => Some(String::new()).filter(|s| !s.is_empty()),
-                        },
-                        ip: match presence.get_str("ip") {
-                            Ok(e) => Some(e.to_string()),
-                            Err(_) => Some(String::new()).filter(|s| !s.is_empty()),
-                        },
-                        protocol: match presence.get_str("protocol") {
-                            Ok(e) => Some(e.to_string()),
-                            Err(_) => Some(String::new()).filter(|s| !s.is_empty()),
-                        },
-                        reason: match presence.get_str("reason") {
-                            Ok(e) => Some(e.to_string()),
-                            Err(_) => Some(String::new()).filter(|s| !s.is_empty()),
-                        },
-                        asset: match presence.get_str("asset") {
-                            Ok(e) => Some(e.to_string()),
-                            Err(_) => Some(String::new()).filter(|s| !s.is_empty()),
-                        },
-                        time: Some((Local::now()).format("%Y-%m-%dT%H:%M:%SZ").to_string()),
-                    },
+                    payload: presence.clone(),
                 }])
             } else {
                 presence_client.post(url).json(&presences_array)
@@ -1269,131 +1266,287 @@ async fn simulate_presences(
         };
         let res = builder.send().await;
 
+        let mut threads_ref: Option<
+            Arc<(
+                String,
+                JoinHandle<()>,
+                Sender<()>,
+                Sender<()>,
+                AtomicI8,
+                Sender<()>,
+                Mutex<String>,
+                Mutex<String>,
+                Mutex<String>,
+            )>,
+        > = None;
+
+        for index in 0..THREADS.len() {
+            if let Some(threads_reference) = THREADS.load(index) {
+                if threads_reference.0 == *url {
+                    // udate current_status because it could be changed from the tracks thread
+                    current_status = threads_reference.4.load(Ordering::Relaxed);
+                    threads_ref = Some(threads_reference);
+                    break;
+                }
+            }
+        }
+
         match res {
-            Ok(_a) => match current_status {
-                1 => continue,
+            Ok(resp) => match current_status {
+                1 => {
+                    if let Some(ref threads_ref) = threads_ref {
+                        let mut ok_msg = threads_ref.7.lock().unwrap();
+                        *ok_msg = resp.status().to_string();
+                        let mut time_msg = threads_ref.8.lock().unwrap();
+                        *time_msg = Local::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+                    }
+                    continue;
+                }
                 0 => {
                     presences_array = vec![];
                     current_status = 1;
-                    for index in 0..THREADS.len() {
-                        if let Some(e) = THREADS.load(index) {
-                            if e.0 == *url {
-                                e.4.store(current_status, Ordering::Relaxed);
-                            }
-                        }
+                    if let Some(ref threads_ref) = threads_ref {
+                        threads_ref.4.store(current_status, Ordering::Relaxed);
+                        let mut ok_msg = threads_ref.7.lock().unwrap();
+                        *ok_msg = resp.status().to_string();
+                        let mut time_msg = threads_ref.8.lock().unwrap();
+                        *time_msg = Local::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
                     }
                 }
                 _ => continue,
             },
-            Err(_err) => match current_status {
+            Err(err) => match current_status {
                 1 => {
                     presences_array.push(Req {
                         meta: Eveent {
                             event: "presence".to_string(),
                             account: "municio".to_string(),
                         },
-                        payload: Presence {
-                            id: presence.get_i64("id").unwrap(),
-                            connection_id: presence.get_i64("connection_id").unwrap(),
-                            id_str: match presence.get_str("id_str") {
-                                Ok(e) => Some(e.to_string()),
-                                Err(_) => Some(String::new()).filter(|s| !s.is_empty()),
-                            },
-                            typ: match presence.get_str("type") {
-                                Ok(e) => Some(e.to_string()),
-                                Err(_) => Some(String::new()).filter(|s| !s.is_empty()),
-                            },
-                            fullreason: match presence.get_str("fullreason") {
-                                Ok(e) => Some(e.to_string()),
-                                Err(_) => Some(String::new()).filter(|s| !s.is_empty()),
-                            },
-                            cs: match presence.get_str("cs") {
-                                Ok(e) => Some(e.to_string()),
-                                Err(_) => Some(String::new()).filter(|s| !s.is_empty()),
-                            },
-                            ip: match presence.get_str("ip") {
-                                Ok(e) => Some(e.to_string()),
-                                Err(_) => Some(String::new()).filter(|s| !s.is_empty()),
-                            },
-                            protocol: match presence.get_str("protocol") {
-                                Ok(e) => Some(e.to_string()),
-                                Err(_) => Some(String::new()).filter(|s| !s.is_empty()),
-                            },
-                            reason: match presence.get_str("reason") {
-                                Ok(e) => Some(e.to_string()),
-                                Err(_) => Some(String::new()).filter(|s| !s.is_empty()),
-                            },
-                            asset: match presence.get_str("asset") {
-                                Ok(e) => Some(e.to_string()),
-                                Err(_) => Some(String::new()).filter(|s| !s.is_empty()),
-                            },
-                            time: Some((Local::now()).format("%Y-%m-%dT%H:%M:%SZ").to_string()),
-                        },
+                        payload: presence.clone(),
                     });
                     current_status = 0;
-                    for index in 0..THREADS.len() {
-                        if let Some(e) = THREADS.load(index) {
-                            if e.0 == *url {
-                                e.4.store(current_status, Ordering::Relaxed);
-                            }
-                        }
+                    if let Some(ref threads_ref) = threads_ref {
+                        threads_ref.4.store(current_status, Ordering::Relaxed);
+                        let mut msg_err = threads_ref.6.lock().unwrap();
+                        *msg_err = err.to_string();
+                        let mut time_msg = threads_ref.8.lock().unwrap();
+                        *time_msg = Local::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
                     }
                 }
-                0 => presences_array.push(Req {
-                    meta: Eveent {
-                        event: "presence".to_string(),
-                        account: "municio".to_string(),
-                    },
-                    payload: Presence {
-                        id: presence.get_i64("id").unwrap(),
-                        connection_id: presence.get_i64("connection_id").unwrap(),
-                        id_str: match presence.get_str("id_str") {
-                            Ok(e) => Some(e.to_string()),
-                            Err(_) => Some(String::new()).filter(|s| !s.is_empty()),
+                0 => {
+                    if let Some(ref threads_ref) = threads_ref {
+                        let mut msg_err = threads_ref.6.lock().unwrap();
+                        *msg_err = err.to_string();
+                        let mut time_msg = threads_ref.8.lock().unwrap();
+                        *time_msg = Local::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+                    }
+                    presences_array.push(Req {
+                        meta: Eveent {
+                            event: "presence".to_string(),
+                            account: "municio".to_string(),
                         },
-                        typ: match presence.get_str("type") {
-                            Ok(e) => Some(e.to_string()),
-                            Err(_) => Some(String::new()).filter(|s| !s.is_empty()),
-                        },
-                        fullreason: match presence.get_str("fullreason") {
-                            Ok(e) => Some(e.to_string()),
-                            Err(_) => Some(String::new()).filter(|s| !s.is_empty()),
-                        },
-                        cs: match presence.get_str("cs") {
-                            Ok(e) => Some(e.to_string()),
-                            Err(_) => Some(String::new()).filter(|s| !s.is_empty()),
-                        },
-                        ip: match presence.get_str("ip") {
-                            Ok(e) => Some(e.to_string()),
-                            Err(_) => Some(String::new()).filter(|s| !s.is_empty()),
-                        },
-                        protocol: match presence.get_str("protocol") {
-                            Ok(e) => Some(e.to_string()),
-                            Err(_) => Some(String::new()).filter(|s| !s.is_empty()),
-                        },
-                        reason: match presence.get_str("reason") {
-                            Ok(e) => Some(e.to_string()),
-                            Err(_) => Some(String::new()).filter(|s| !s.is_empty()),
-                        },
-                        asset: match presence.get_str("asset") {
-                            Ok(e) => Some(e.to_string()),
-                            Err(_) => Some(String::new()).filter(|s| !s.is_empty()),
-                        },
-                        time: Some((Local::now()).format("%Y-%m-%dT%H:%M:%SZ").to_string()),
-                    },
-                }),
+                        payload: presence.clone(),
+                    })
+                }
                 _ => continue,
             },
         }
-        for index in 0..THREADS.len() {
-            if let Some(e) = THREADS.load(index) {
-                if e.0 == *url {
-                    e.4.store(current_status, Ordering::Relaxed);
-                }
-            }
+        if let Some(ref threads_ref) = threads_ref {
+            threads_ref.4.store(current_status, Ordering::Relaxed);
         }
     }
     println!("Shuting down presence simulation the Handler thread!!")
+}
+
+#[post("/abort", data = "<url>")]
+pub fn abort_thread(url: String) {
+    for index in 0..THREADS.len() {
+        if let Some(e) = THREADS.load(index) {
+            if e.0 == url {
+                let _ = &e.1.abort();
+                match e.2.send(()) {
+                    Ok(_e) => println!("Terminating tracks signal !"),
+                    Err(e) => println!("{:?}", e),
+                }
+                match e.3.send(()) {
+                    Ok(_e) => println!("Terminating presences signal !"),
+                    Err(e) => println!("{:?}", e),
+                }
+                match e.5.send(()) {
+                    Ok(_e) => println!("Terminating replay one file signal !"),
+                    Err(e) => println!("{:?}", e),
+                }
+                THREADS.store(index, None);
+                break;
+            }
+        }
+    }
+}
+
+#[get("/events")]
+pub fn stream() -> EventStream![] {
+    use serde_json::Map;
+    EventStream! {
+        let mut interval = time::interval(Duration::from_secs(2));
+
+        loop {
+            let mut map = Map::new();
+            let mut threads = Map::new();
+            for index in 0..THREADS.len(){
+                if let Some(e) = THREADS.load(index) {
+                    let mut info = Map::new();
+                    info.insert("code".to_string(),e.4.load(Ordering::Relaxed).into());
+                    let msg_err = e.6.lock().unwrap();
+                    let ok_msg = e.7.lock().unwrap();
+                    let timestamp = e.8.lock().unwrap();
+                    info.insert("err_msg".to_string(),json!(*msg_err.clone()));
+                    info.insert("ok_msg".to_string(),json!(*ok_msg.clone()));
+                    info.insert("timestamp".to_string(),json!(*timestamp.clone()));
+
+                    threads.insert(e.0.to_string(), info.into());
+                }
+            }
+            map.insert("threads".to_string(),threads.into());
+            map.insert("record".to_string(),RECORD.load(Ordering::Relaxed).into());
+            yield Event::json(&map);
+            interval.tick().await;
+        }
+    }
+}
+
+#[get("/<msg>")]
+pub async fn index(msg: String) -> Template {
+    // use mongodb::bson::doc;
+
+    // let client = utils::get_client().await.unwrap();
+
+    // let pres_collection: Collection<Presence> = client.database("munic").collection("presences");
+    // let track_collection: Collection<Tracks> = client.database("munic").collection("tracks");
+
+    // let trk_pipeline = vec![
+    //     doc! {"$addFields": { "date": { "$toDate": "$recorded_at" } }  },
+    //     doc! {"$sort": { "date" : 1 }},
+    //     doc! {"$group":  {
+    //         "_id": { "file": "$file","year": { "$year": "$date" },  "month": { "$month": "$date" }, "day": { "$dayOfMonth": "$date" } }
+    //     }},
+    // ];
+    // let pres_pipeline = vec![
+    //     doc! {"$addFields": { "date": { "$toDate": "$time" } }  },
+    //     doc! {"$sort": { "date" : 1 }},
+    //     doc! {"$group":  {
+    //         "_id": { "file": "$file","year": { "$year": "$date" }, "month": { "$month": "$date" }, "day": { "$dayOfMonth": "$date" } }
+    //     }},
+    // ];
+
+    // let tracks_data = track_collection
+    //     .aggregate(trk_pipeline, None)
+    //     .await
+    //     .map_err(|e| println!("{}", e))
+    //     .unwrap();
+
+    // let presence_data = pres_collection
+    //     .aggregate(pres_pipeline, None)
+    //     .await
+    //     .map_err(|e| println!("{}", e))
+    //     .unwrap();
+
+    // use futures::stream::TryStreamExt;
+
+    // let track_dates: Vec<_> = tracks_data
+    //     .try_collect()
+    //     .await
+    //     .map_err(|e| println!("{}", e))
+    //     .unwrap();
+    // let presence_dates: Vec<_> = presence_data
+    //     .try_collect()
+    //     .await
+    //     .map_err(|e| println!("{}", e))
+    //     .unwrap();
+
+    dotenv().ok();
+    let path = format!("{}{}", env::var("DIR").unwrap(), "uploads/");
+    let dir_entries = fs::read_dir(path).unwrap();
+
+    // Use the `map()` function to extract the file names from the directory entries
+    let file_names = dir_entries
+        .filter_map(Result::ok)
+        .filter(|entry| entry.file_name().to_string_lossy().starts_with("trip_"))
+        .map(|entry| entry.file_name().into_string().unwrap())
+        .collect::<Vec<String>>();
+
+    Template::render(
+        "index",
+        context! {msg:msg,json_data:file_names},
+        // context! {msg:msg,presence_dates:presence_dates,track_dates:track_dates,json_data:file_names},
+    )
+}
+
+#[get("/")]
+pub async fn indexx() -> Template {
+    // use mongodb::bson::doc;
+
+    // let client = utils::get_client().await.unwrap();
+
+    // let pres_collection: Collection<Presence> = client.database("munic").collection("presences");
+    // let track_collection: Collection<Tracks> = client.database("munic").collection("tracks");
+
+    // let trk_pipeline = vec![
+    //     doc! {"$addFields": { "date": { "$toDate": "$recorded_at" } }  },
+    //     doc! {"$sort": { "date" : 1 }},
+    //     doc! {"$group":  {
+    //         "_id": { "file": "$file","year": { "$year": "$date" },  "month": { "$month": "$date" }, "day": { "$dayOfMonth": "$date" } }
+    //     }},
+    // ];
+    // let pres_pipeline = vec![
+    //     doc! {"$addFields": { "date": { "$toDate": "$time" } }  },
+    //     doc! {"$sort": { "date" : 1 }},
+    //     doc! {"$group":  {
+    //         "_id": { "file": "$file","year": { "$year": "$date" }, "month": { "$month": "$date" }, "day": { "$dayOfMonth": "$date" } }
+    //     }},
+    // ];
+
+    // let tracks_data = track_collection
+    //     .aggregate(trk_pipeline, None)
+    //     .await
+    //     .map_err(|e| println!("{}", e))
+    //     .unwrap();
+
+    // let presence_data = pres_collection
+    //     .aggregate(pres_pipeline, None)
+    //     .await
+    //     .map_err(|e| println!("{}", e))
+    //     .unwrap();
+
+    // use futures::stream::TryStreamExt;
+
+    // let track_dates: Vec<_> = tracks_data
+    //     .try_collect()
+    //     .await
+    //     .map_err(|e| println!("{}", e))
+    //     .unwrap();
+
+    // let presence_dates: Vec<_> = presence_data
+    //     .try_collect()
+    //     .await
+    //     .map_err(|e| println!("{}", e))
+    //     .unwrap();
+
+    dotenv().ok();
+    let path = format!("{}{}", env::var("DIR").unwrap(), "uploads/");
+    let dir_entries = fs::read_dir(path).unwrap();
+
+    // Use the `map()` function to extract the file names from the directory entries
+    let file_names = dir_entries
+        .filter_map(Result::ok)
+        .filter(|entry| entry.file_name().to_string_lossy().starts_with("trip_"))
+        .map(|entry| entry.file_name().into_string().unwrap())
+        .collect::<Vec<String>>();
+
+    Template::render(
+        "index",
+        context! {msg:"",json_data:file_names},
+        // context! {msg:"",presence_dates:presence_dates,track_dates:track_dates,json_data:file_names},
+    )
 }
 
 async fn replay(
@@ -1405,7 +1558,7 @@ async fn replay(
     treceiver: Receiver<()>,
     preceiver: Receiver<()>,
 ) {
-    let client = get_client().await.unwrap();
+    let client = utils::get_client().await.unwrap();
 
     let tracks_collection = client.database("munic").collection::<Tracks>("tracks");
 
@@ -1590,18 +1743,39 @@ pub async fn replay_tracks(
         };
         let res = builder.send().await;
 
+        let mut threads_ref: Option<
+            Arc<(
+                String,
+                JoinHandle<()>,
+                Sender<()>,
+                Sender<()>,
+                AtomicI8,
+                Sender<()>,
+                Mutex<String>,
+                Mutex<String>,
+                Mutex<String>,
+            )>,
+        > = None;
+
+        for index in 0..THREADS.len() {
+            if let Some(threads_reference) = THREADS.load(index) {
+                if threads_reference.0 == *url {
+                    // udate current_status because it could be changed from the presence thread
+                    current_status = threads_reference.4.load(Ordering::Relaxed);
+                    threads_ref = Some(threads_reference);
+                    break;
+                }
+            }
+        }
+
         match res {
             Ok(_a) => match current_status {
                 1 => continue,
                 0 => {
                     tracks_array = vec![];
                     current_status = 1;
-                    for index in 0..THREADS.len() {
-                        if let Some(e) = THREADS.load(index) {
-                            if e.0 == *url {
-                                e.4.store(current_status, Ordering::Relaxed);
-                            }
-                        }
+                    if let Some(ref threads_ref) = threads_ref {
+                        threads_ref.4.store(current_status, Ordering::Relaxed);
                     }
                 }
                 _ => continue,
@@ -1650,12 +1824,8 @@ pub async fn replay_tracks(
                         },
                     });
                     current_status = 0;
-                    for index in 0..THREADS.len() {
-                        if let Some(e) = THREADS.load(index) {
-                            if e.0 == *url {
-                                e.4.store(current_status, Ordering::Relaxed);
-                            }
-                        }
+                    if let Some(ref threads_ref) = threads_ref {
+                        threads_ref.4.store(current_status, Ordering::Relaxed);
                     }
                 }
                 0 => tracks_array.push(Req {
@@ -1786,18 +1956,38 @@ pub async fn replay_presence(
         };
         let res = builder.send().await;
 
+        let mut threads_ref: Option<
+            Arc<(
+                String,
+                JoinHandle<()>,
+                Sender<()>,
+                Sender<()>,
+                AtomicI8,
+                Sender<()>,
+                Mutex<String>,
+                Mutex<String>,
+                Mutex<String>,
+            )>,
+        > = None;
+
+        for index in 0..THREADS.len() {
+            if let Some(threads_reference) = THREADS.load(index) {
+                if threads_reference.0 == *url {
+                    // udate current_status because it could be changed from the presence thread
+                    current_status = threads_reference.4.load(Ordering::Relaxed);
+                    threads_ref = Some(threads_reference);
+                    break;
+                }
+            }
+        }
         match res {
             Ok(_a) => match current_status {
                 1 => continue,
                 0 => {
                     presences_array = vec![];
                     current_status = 1;
-                    for index in 0..THREADS.len() {
-                        if let Some(e) = THREADS.load(index) {
-                            if e.0 == *url {
-                                e.4.store(current_status, Ordering::Relaxed);
-                            }
-                        }
+                    if let Some(ref threads_ref) = threads_ref {
+                        threads_ref.4.store(current_status, Ordering::Relaxed);
                     }
                 }
                 _ => continue,
@@ -1851,12 +2041,8 @@ pub async fn replay_presence(
                         },
                     });
                     current_status = 0;
-                    for index in 0..THREADS.len() {
-                        if let Some(e) = THREADS.load(index) {
-                            if e.0 == *url {
-                                e.4.store(current_status, Ordering::Relaxed);
-                            }
-                        }
+                    if let Some(ref threads_ref) = threads_ref {
+                        threads_ref.4.store(current_status, Ordering::Relaxed);
                     }
                 }
                 0 => presences_array.push(Req {
@@ -1908,207 +2094,11 @@ pub async fn replay_presence(
                 _ => continue,
             },
         }
-        for index in 0..THREADS.len() {
-            if let Some(e) = THREADS.load(index) {
-                if e.0 == *url {
-                    e.4.store(current_status, Ordering::Relaxed);
-                }
-            }
+        if let Some(ref threads_ref) = threads_ref {
+            threads_ref.4.store(current_status, Ordering::Relaxed);
         }
     }
     println!("Shuting down presence replay the Handler thread!!")
-}
-
-#[post("/abort", data = "<url>")]
-pub fn abort_thread(url: String) {
-    for index in 0..THREADS.len() {
-        if let Some(e) = THREADS.load(index) {
-            if e.0 == url {
-                let _ = &e.1.abort();
-                match e.2.send(()) {
-                    Ok(_e) => println!("Terminating tracks signal !"),
-                    Err(e) => println!("{:?}", e),
-                }
-                match e.3.send(()) {
-                    Ok(_e) => println!("Terminating presences signal !"),
-                    Err(e) => println!("{:?}", e),
-                }
-                match e.5.send(()) {
-                    Ok(_e) => println!("Terminating replay one file signal !"),
-                    Err(e) => println!("{:?}", e),
-                }
-                THREADS.store(index, None);
-            }
-        }
-    }
-}
-
-#[get("/events")]
-pub fn stream() -> EventStream![] {
-    use serde_json::Map;
-    EventStream! {
-        let mut interval = time::interval(Duration::from_secs(2));
-
-        loop {
-            let mut map = Map::new();
-            let mut threads = Map::new();
-            for index in 0..THREADS.len(){
-                if let Some(e) = THREADS.load(index) {
-                    threads.insert(e.0.to_string(), e.4.load(Ordering::Relaxed).into());
-                }
-            }
-            map.insert("threads".to_string(),threads.into());
-            map.insert("record".to_string(),RECORD.load(Ordering::Relaxed).into());
-            yield Event::json(&map);
-            interval.tick().await;
-        }
-    }
-}
-
-#[get("/<msg>")]
-pub async fn index(msg: String) -> Template {
-    use mongodb::bson::doc;
-
-    let client = get_client().await.unwrap();
-
-    let pres_collection: Collection<Presence> = client.database("munic").collection("presences");
-    let track_collection: Collection<Tracks> = client.database("munic").collection("tracks");
-
-    let trk_pipeline = vec![
-        doc! {"$addFields": { "date": { "$toDate": "$recorded_at" } }  },
-        doc! {"$sort": { "date" : 1 }},
-        doc! {"$group":  {
-            "_id": { "file": "$file","year": { "$year": "$date" },  "month": { "$month": "$date" }, "day": { "$dayOfMonth": "$date" } }
-        }},
-    ];
-    let pres_pipeline = vec![
-        doc! {"$addFields": { "date": { "$toDate": "$time" } }  },
-        doc! {"$sort": { "date" : 1 }},
-        doc! {"$group":  {
-            "_id": { "file": "$file","year": { "$year": "$date" }, "month": { "$month": "$date" }, "day": { "$dayOfMonth": "$date" } }
-        }},
-    ];
-
-    let tracks_data = track_collection
-        .aggregate(trk_pipeline, None)
-        .await
-        .map_err(|e| println!("{}", e))
-        .unwrap();
-
-    let presence_data = pres_collection
-        .aggregate(pres_pipeline, None)
-        .await
-        .map_err(|e| println!("{}", e))
-        .unwrap();
-
-    use futures::stream::TryStreamExt;
-
-    let track_dates: Vec<_> = tracks_data
-        .try_collect()
-        .await
-        .map_err(|e| println!("{}", e))
-        .unwrap();
-    let presence_dates: Vec<_> = presence_data
-        .try_collect()
-        .await
-        .map_err(|e| println!("{}", e))
-        .unwrap();
-
-    dotenv().ok();
-    let path = format!("{}{}", env::var("DIR").unwrap(), "uploads/");
-    let dir_entries = fs::read_dir(path).unwrap();
-
-    // Use the `map()` function to extract the file names from the directory entries
-    let file_names = dir_entries
-        .filter_map(Result::ok)
-        .filter(|entry| entry.file_name().to_string_lossy().starts_with("trip_"))
-        .map(|entry| entry.file_name().into_string().unwrap())
-        .collect::<Vec<String>>();
-
-    Template::render(
-        "index",
-        context! {msg:msg,presence_dates:presence_dates,track_dates:track_dates,json_data:file_names},
-    )
-}
-
-#[get("/")]
-pub async fn indexx() -> Template {
-    use mongodb::bson::doc;
-
-    let client = get_client().await.unwrap();
-
-    let pres_collection: Collection<Presence> = client.database("munic").collection("presences");
-    let track_collection: Collection<Tracks> = client.database("munic").collection("tracks");
-
-    let trk_pipeline = vec![
-        doc! {"$addFields": { "date": { "$toDate": "$recorded_at" } }  },
-        doc! {"$sort": { "date" : 1 }},
-        doc! {"$group":  {
-            "_id": { "file": "$file","year": { "$year": "$date" },  "month": { "$month": "$date" }, "day": { "$dayOfMonth": "$date" } }
-        }},
-    ];
-    let pres_pipeline = vec![
-        doc! {"$addFields": { "date": { "$toDate": "$time" } }  },
-        doc! {"$sort": { "date" : 1 }},
-        doc! {"$group":  {
-            "_id": { "file": "$file","year": { "$year": "$date" }, "month": { "$month": "$date" }, "day": { "$dayOfMonth": "$date" } }
-        }},
-    ];
-
-    let tracks_data = track_collection
-        .aggregate(trk_pipeline, None)
-        .await
-        .map_err(|e| println!("{}", e))
-        .unwrap();
-
-    let presence_data = pres_collection
-        .aggregate(pres_pipeline, None)
-        .await
-        .map_err(|e| println!("{}", e))
-        .unwrap();
-
-    use futures::stream::TryStreamExt;
-
-    let track_dates: Vec<_> = tracks_data
-        .try_collect()
-        .await
-        .map_err(|e| println!("{}", e))
-        .unwrap();
-
-    let presence_dates: Vec<_> = presence_data
-        .try_collect()
-        .await
-        .map_err(|e| println!("{}", e))
-        .unwrap();
-
-    dotenv().ok();
-    let path = format!("{}{}", env::var("DIR").unwrap(), "uploads/");
-    let dir_entries = fs::read_dir(path).unwrap();
-
-    // Use the `map()` function to extract the file names from the directory entries
-    let file_names = dir_entries
-        .filter_map(Result::ok)
-        .filter(|entry| entry.file_name().to_string_lossy().starts_with("trip_"))
-        .map(|entry| entry.file_name().into_string().unwrap())
-        .collect::<Vec<String>>();
-
-    Template::render(
-        "index",
-        context! {msg:"",presence_dates:presence_dates,track_dates:track_dates,json_data:file_names},
-    )
-}
-
-async fn get_client() -> Result<Client, Box<dyn Error + Send + Sync>> {
-    dotenv().ok();
-    let client_uri =
-        env::var("MONGODB_URI").expect("You must set the MONGODB_URI environment var!");
-
-    let options =
-        ClientOptions::parse_with_resolver_config(&client_uri, ResolverConfig::cloudflare())
-            .await?;
-    let client = Client::with_options(options)?;
-
-    Ok(client)
 }
 
 // async fn store_tracks(file: &Option<String>) -> Result<(), Box<dyn Error + Send + Sync>> {
@@ -2123,7 +2113,7 @@ async fn get_client() -> Result<Client, Box<dyn Error + Send + Sync>> {
 
 //     let json_data: Vec<Tracks> = serde_json::from_str(&data).expect("Unable to read file");
 
-//     let client = get_client().await.unwrap();
+//     let client = utils::get_client().await.unwrap();
 
 //     let collection = client.database("munic").collection("tracks");
 
@@ -2136,7 +2126,7 @@ async fn get_client() -> Result<Client, Box<dyn Error + Send + Sync>> {
 //     Ok(())
 // }
 // async fn update_presence(file: &Option<String>) -> Result<(), Box<dyn Error + Send + Sync>> {
-//     let client = get_client().await.unwrap();
+//     let client = utils::get_client().await.unwrap();
 
 //     let collection: Collection<Tracks> = client.database("munic").collection("presences");
 
@@ -2147,7 +2137,7 @@ async fn get_client() -> Result<Client, Box<dyn Error + Send + Sync>> {
 // }
 
 // async fn update_tracks(file: &Option<String>) -> Result<(), Box<dyn Error + Send + Sync>> {
-//     let client = get_client().await.unwrap();
+//     let client = utils::get_client().await.unwrap();
 
 //     let collection: Collection<Tracks> = client.database("munic").collection("tracks");
 
@@ -2166,7 +2156,7 @@ async fn get_client() -> Result<Client, Box<dyn Error + Send + Sync>> {
 
 //     let json_data: Vec<Presence> = serde_json::from_str(&data).expect("Unable to read file");
 
-//     let client = get_client().await.unwrap();
+//     let client = utils::get_client().await.unwrap();
 
 //     let collection = client.database("munic").collection("presences");
 
@@ -2179,25 +2169,6 @@ async fn get_client() -> Result<Client, Box<dyn Error + Send + Sync>> {
 //     Ok(())
 // }
 
-fn ping_server(url: String) -> bool {
-    use dns_lookup::lookup_host;
-    use winping::{Buffer, Pinger};
-
-    let u: Url = Url::parse(&url).unwrap();
-
-    let ips: Vec<std::net::IpAddr> = lookup_host(&u.host().unwrap().to_string()).unwrap();
-
-    let pinger = Pinger::new().unwrap();
-    let mut buffer = Buffer::new();
-    match pinger.send(ips[0], &mut buffer) {
-        Ok(_) => true,
-        Err(_err) => false,
-    }
-}
-
-use rust_decimal::prelude::*;
-use std::f64::consts::PI;
-
 trait ToRadians {
     fn to_radians(self) -> Self;
 }
@@ -2206,21 +2177,4 @@ impl ToRadians for f64 {
     fn to_radians(self) -> f64 {
         self * PI / 180.0
     }
-}
-
-fn float64_to_base64(f64_num: f64) -> String {
-    let fixed_point_value = (f64_num * 10000.0).round();
-    let signed_integer = fixed_point_value as i32;
-    let byte_array: [u8; 4] = unsafe { mem::transmute(signed_integer.to_le()) };
-    base64::encode(&byte_array)
-}
-
-fn int_to_base64(value: i32) -> String {
-    let bytes = value.to_be_bytes();
-    base64::encode_config(&bytes, base64::STANDARD)
-}
-
-fn bool_to_base64(boolean_value: bool) -> String {
-    let byte_value: &[u8] = if boolean_value { b"\x01" } else { b"\x00" };
-    base64::encode(&byte_value)
 }

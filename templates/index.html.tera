@@ -85,6 +85,10 @@
       box-shadow: 0 0 20px rgba(0, 0, 0, 0.15);
     }
 
+    .styled-table #resp_message {
+      width: 200px;
+    }
+
     .styled-table thead tr {
       background-color: rgb(53 190 235 / 38%);
       color: #ffffff;
@@ -106,11 +110,11 @@
     }
 
     .styled-table tbody tr:nth-of-type(even) {
-      background-color: #f3f3f3;
+      background-color: rgb(53 190 235 / 38%);
     }
 
     .styled-table tbody tr:last-of-type {
-      border-bottom: 2px solid #4286f4;
+      border-bottom: 2px solid rgb(53 190 235 / 38%);
     }
 
     .label-file {
@@ -444,20 +448,20 @@
       <label for="radio1">Simulate</label>
 
 
-      <div class="dropdown">
-        <input type="radio" id="radio" name="radios" value="all">
-        <label for="radio">Replay</label>
-        <div class="dropdown-content">
+      {# <div class="dropdown"> #}
+        <input type="radio" id="radio2" name="radios" value="all">
+        <label for="radio2">Replay</label>
+        {# <div class="dropdown-content">
           <input type="radio" id="radio2" name="radios" value="false">
           <label for="radio2">Using one file</label>
 
           <input type="radio" id="radio3" name="radios" value="false">
           <label for="radio3">Using multiple files</label>
         </div>
-      </div>
+      </div> #}
 
       <input type="radio" id="radio4" name="radios" value="false">
-      <label for="radio4">Uplaod File</label>
+      <label for="radio4">Upload File</label>
 
     </div>
     <div class="btn-nav">
@@ -493,6 +497,8 @@
             <th>Thread URL</th>
             <th>Abort</th>
             <th>HTTP Request Status</th>
+            <th>Request Timestamp</th>
+            <th>HTTP Request Message</th>
           </tr>
         </thead>
         <tbody>
@@ -541,9 +547,9 @@
               <label><strong>Google maps API KEY</strong></label><br>
               <input name="key" id="key" type="password" placeholder="Enter your GM API KEY"><br>
               <label><strong>Departure</strong></label><br>
-              <input name="lat" id="lat" type="text" placeholder="Enter Source Location"><br>
+              <input name="source" id="source" type="text" placeholder="Enter Departure Location"><br>
               <label><strong>Destination</strong></label><br>
-              <input name="lon" id="lon" type="text" placeholder="Enter Destination Location">
+              <input name="destination" id="destination" type="text" placeholder="Enter Destination Location">
             </div>
             <div class="replayslct">
               <div class="replayslct1">
@@ -552,11 +558,13 @@
                   <div class="select">
                     <select name="track_file" id="tf_select">
                       <option id="slct" value="">Choose a file</option>
+                      {% if track_dates %}
                       {% for file, data in track_dates | group_by(attribute="_id.file") %}
                       {% if file %}
                       <option id="slct" value="{{file}}"> {{file}}</option>
                       {% endif %}
                       {% endfor %}
+                      {% endif %}
                     </select>
                   </div>
 
@@ -564,11 +572,13 @@
                   <div class="select">
                     <select name="presence_file" id="pf_select">
                       <option id="slct" value="">Choose a file</option>
+                      {% if presence_dates %}
                       {% for file, data in presence_dates | group_by(attribute="_id.file") %}
                       {% if file %}
                       <option id="slct" value="{{file}}"> {{file}}</option>
                       {% endif %}
                       {% endfor %}
+                      {% endif %}
                     </select>
                   </div>
                 </div>
@@ -588,7 +598,7 @@
               </div>
               <div class="replayslct2">
                 <div id="http-div" class="content">
-                  <label><strong>Choose a file </strong></label>
+                  <label><strong>Choose a Replay file </strong></label>
                   <div class="select">
                     <select name="chosen_json_file" id="chosen_json_file">
                       <option id="slct" value="">Choose a file</option>
@@ -609,6 +619,7 @@
           </div>
 
           <input type="hidden" id="fields_size" name="fields_size">
+          <input type="hidden" maxlength="999999" id="fields_data" name="fields_data">
           <button type="submit" class="button" id="button"><strong>Simulate !!</strong></button>
       </form>
 
@@ -620,7 +631,6 @@
 <script type="text/javascript">
   var sim_chk = document.getElementById("radio1");
   var rep_chk = document.getElementById("radio2");
-  var reps_chk = document.getElementById("radio3");
   var upl_chk = document.getElementById("radio4");
 
   showForm("form1")
@@ -639,30 +649,6 @@
       }
     }
   });
-
-  reps_chk.addEventListener('change', function () {
-    if (reps_chk.checked) {
-      showForm("form1")
-      button1.innerText = "Replay !"
-      var divsToHide = document.getElementsByClassName("sim_elements");
-      for (var i = 0; i < divsToHide.length; i++) {
-        divsToHide[i].style.display = "none";
-      }
-      var divsToHide = document.getElementsByClassName("replayslct");
-      for (var i = 0; i < divsToHide.length; i++) {
-        divsToHide[i].style.display = "block";
-      }
-      var divsToHide = document.getElementsByClassName("replayslct2");
-      for (var i = 0; i < divsToHide.length; i++) {
-        divsToHide[i].style.display = "none";
-      }
-      var replayslct = document.getElementsByClassName("replayslct1");
-      for (var i = 0; i < replayslct.length; i++) {
-        replayslct[i].style.display = "block";
-      }
-    }
-  });
-
 
   rep_chk.addEventListener('change', function () {
     if (rep_chk.checked) {
@@ -709,7 +695,16 @@
 
   var index = 0
 
+  var field_array = []
+
+  //var printVariable = function () {
+  //  console.log(JSON.stringify(field_array));
+  //};
+
+  //setInterval(printVariable, 1000);
+
   addcustom.addEventListener('click', function () {
+    var json_object = { id: index }
     index += 1
     var fieldDiv = document.getElementById("custom-fields")
     var div = document.createElement("div")
@@ -721,6 +716,14 @@
     input.type = "text"
     input.name = "field_name_" + index
     input.required = true
+    input.addEventListener("change", function (e) {
+      if (e.target.value != "") {
+        json_object.field_name = e.target.value
+      } else {
+        json_object.field_name = null
+      }
+      document.getElementById("fields_data").value = JSON.stringify(field_array)
+    })
 
     var divselects = document.createElement("div")
     divselects.setAttribute("id", "http-div")
@@ -730,6 +733,7 @@
     labelT.innerText = "Select a Type"
     var select = document.createElement("select")
     select.name = "type_" + index
+    select.required = true
     var option0 = document.createElement("option")
     var option1 = document.createElement("option")
     var option2 = document.createElement("option")
@@ -745,29 +749,37 @@
     select.append(option0, option1, option2, option3)
 
     var li_div = document.createElement("div")
+    li_div.setAttribute('id', 'li_div')
 
     select.addEventListener("change", function (e) {
       switch (e.target.value) {
         case "":
+          json_object.type = null
           if (divselects.childNodes[3]) {
             if (divselects.childNodes[4]) {
               divselects.childNodes[4].remove()
+              li_div.innerHTML = '';
             }
             divselects.childNodes[3].remove()
             divselects.childNodes[2].remove()
           }
+          document.getElementById("fields_data").value = JSON.stringify(field_array)
           break;
         case "bool":
+          json_object.type = { bool: null }
           if (divselects.childNodes[3]) {
             if (divselects.childNodes[4]) {
               divselects.childNodes[4].remove()
+              li_div.innerHTML = '';
             }
             divselects.childNodes[3].remove()
             divselects.childNodes[2].remove()
           }
+          document.getElementById("fields_data").value = JSON.stringify(field_array)
           var labelV = document.createElement("label")
           labelV.innerText = "Select a Value"
           var select2 = document.createElement("select")
+          select2.required = true
           select2.name = "bool_option_" + index
 
           var opt0 = document.createElement("option")
@@ -779,13 +791,23 @@
           opt1.value = "true"
           opt2.textContent = "False"
           opt2.value = "false"
+          select2.addEventListener("change", function (e) {
+            if (e.target.value != "") {
+              json_object.type.bool = e.target.value
+            } else {
+              json_object.type.bool = null
+            }
+            document.getElementById("fields_data").value = JSON.stringify(field_array)
+          })
           select2.append(opt0, opt1, opt2)
           divselects.append(labelV, select2)
           break;
         case "int":
+          json_object.type = { int: { min: null, max: null, deviation: null } }
           if (divselects.childNodes[3]) {
             if (divselects.childNodes[4]) {
               divselects.childNodes[4].remove()
+              li_div.innerHTML = '';
             }
             divselects.childNodes[3].remove()
             divselects.childNodes[2].remove()
@@ -803,22 +825,53 @@
           input1.name = "min_" + index
           input2.name = "max_" + index
           input3.name = "deviation_" + index
+          document.getElementById("fields_data").value = JSON.stringify(field_array)
+
+          input1.addEventListener("change", function (e) {
+            if (e.target.value != "") {
+              json_object.type.int = { min: parseInt(e.target.value), max: json_object.type.int.max, deviation: json_object.type.int.deviation }
+            } else {
+              json_object.type.int.min = null
+            }
+            document.getElementById("fields_data").value = JSON.stringify(field_array)
+          })
+          input2.addEventListener("change", function (e) {
+            if (e.target.value != "") {
+              json_object.type.int = { max: parseInt(e.target.value), min: json_object.type.int.min, deviation: json_object.type.int.deviation }
+            } else {
+              json_object.type.int.max = null
+            }
+            document.getElementById("fields_data").value = JSON.stringify(field_array)
+          })
+          input3.addEventListener("change", function (e) {
+            if (e.target.value != "") {
+              json_object.type.int = { deviation: parseInt(e.target.value), max: json_object.type.int.max, min: json_object.type.int.min }
+            } else {
+              json_object.type.int.deviation = null
+            }
+            document.getElementById("fields_data").value = JSON.stringify(field_array)
+          })
+
           divv.append(input1, input2, input3)
           divselects.append(labelV, divv)
+
           setInputFilter(input1, function (value) {
-            return /^-?\d*$/.test(value);
-          }, "Must be an integer");
+            return /^\d*$/.test(value) && (value === "" || parseInt(value) <= 32767);
+          }, "Must be between 0 and 32767");
           setInputFilter(input2, function (value) {
-            return /^-?\d*$/.test(value);
-          }, "Must be an integer");
+            return /^\d*$/.test(value) && (value === "" || parseInt(value) <= 32767);
+          }, "Must be between 0 and 32767");
           setInputFilter(input3, function (value) {
-            return /^-?\d*$/.test(value);
-          }, "Must be an integer");
+            return /^\d*$/.test(value) && (value === "" || parseInt(value) <= 32767);
+          }, "Must be between 0 and 32767");
+
           break;
         case "string":
+          json_object.type = { string: null }
           if (divselects.childNodes[3]) {
             if (divselects.childNodes[4]) {
               divselects.childNodes[4].remove()
+              li_div.innerHTML = '';
             }
             divselects.childNodes[3].remove()
             divselects.childNodes[2].remove()
@@ -827,6 +880,7 @@
           var labelV = document.createElement("label")
           labelV.innerText = "Select a Value"
           var select2 = document.createElement("select")
+          select2.required = true
           select2.name = "str_option_" + index
           var opt0 = document.createElement("option")
           var opt1 = document.createElement("option")
@@ -842,22 +896,38 @@
           select2.addEventListener("change", function (e) {
             switch (e.target.value) {
               case "":
+                json_object.type.string = null
                 if (divselects.childNodes[4]) {
                   divselects.childNodes[4].remove()
+                  li_div.innerHTML = '';
                 }
+                document.getElementById("fields_data").value = JSON.stringify(field_array)
                 break;
               case "random":
                 if (divselects.childNodes[4]) {
                   divselects.childNodes[4].remove()
+                  li_div.innerHTML = '';
                 }
+                json_object.type.string = { random: null }
                 var labelS = document.createElement("label")
                 labelS.innerText = "Select a Size"
                 var size = document.createElement("input")
                 size.placeholder = "Type a size"
                 size.name = "size_" + index
+
+                size.addEventListener("change", function (e) {
+                  if (e.target.value != "") {
+                    json_object.type.string.random = parseInt(e.target.value)
+                  } else {
+                    json_object.type.string.random = null
+                  }
+                  document.getElementById("fields_data").value = JSON.stringify(field_array)
+                })
+
                 setInputFilter(size, function (value) {
                   return /^\d*$/.test(value) && (value === "" || parseInt(value) <= 10);
                 }, "Must be between 0 and 10");
+
                 var divv = document.createElement("div")
                 divv.setAttribute("id", "nums")
                 divv.append(labelS, size)
@@ -866,28 +936,36 @@
               case "array":
                 if (divselects.childNodes[4]) {
                   divselects.childNodes[4].remove()
+                  li_div.innerHTML = '';
                 }
+                json_object.type.string = { array: [] }
                 var labelS = document.createElement("label")
                 labelS.innerText = "Type your Strings (Ctrl+ENTER to add)"
+                var nb_strings_input = document.createElement("input")
+                nb_strings_input.name = "nbr_strings_" + index
+                nb_strings_input.hidden = true
                 var string = document.createElement("input")
                 string.placeholder = "Type a String"
                 var nbe_strings = 0;
                 var ul = document.createElement("ul")
-                li_div.append(ul)
+                li_div.append(ul, nb_strings_input)
                 string.addEventListener('keyup', function (e) {
                   if (e.key === 'Enter' || e.keyCode === 13) {
                     // Prevent the default action of submitting the form
                     e.preventDefault();
                     if (string.value != "") {
+                      nbe_strings += 1
                       var imput = document.createElement("input")
-                      imput.name = "string_option_" + nbe_strings + "_" + index
+                      imput.name = "string_option_" + index + "_" + nbe_strings
                       imput.hidden = true
                       imput.value = string.value
+                      json_object.type.string.array.push(string.value)
+                      document.getElementById("fields_data").value = JSON.stringify(field_array)
                       var li = document.createElement("li")
                       li.innerText = string.value
                       ul.append(li)
                       string.value = ""
-                      nbe_strings += 1
+                      nb_strings_input.value = nbe_strings
                       li_div.append(imput)
                     }
                   }
@@ -909,15 +987,42 @@
     divselects.append(labelT, select)
 
     var labelP = document.createElement("label")
-    labelP.innerText = "Cyclic Time Period in seconds (Simulate every {?})"
+    labelP.innerText = "Cyclic Time Period in seconds (Simulate every {?} / Pattern : %xh%xm%xs (%x is a number)"
     var inputP = document.createElement("input")
     inputP.placeholder = "Enter Time Period (seconds)"
     inputP.type = "text"
+    inputP.required = true
+    inputP.setAttribute('id', "freq_input")
+    inputP.name = "frequence_" + index
+
+    inputP.addEventListener("change", function (e) {
+      if (/^\d+h\d+m\d+s$/.test(e.target.value)) {
+        json_object.frequence = e.target.value
+        inputP.setCustomValidity("");
+      } else {
+        inputP.setCustomValidity("Must follow the pattern %xh%xm%xs");
+        inputP.reportValidity();
+        json_object.frequence = null
+      }
+      document.getElementById("fields_data").value = JSON.stringify(field_array)
+    })
 
     var deleteB = document.createElement("button")
     deleteB.setAttribute("class", "btn btn-danger")
     deleteB.addEventListener("click", function (e) {
       e.preventDefault();
+
+      const indexToDelete = field_array.findIndex(
+        obj =>
+          obj.id === json_object.id
+      );
+
+      if (indexToDelete !== -1) {
+        field_array.splice(indexToDelete, 1);
+      }
+
+      index--
+      document.getElementById("fields_data").value = JSON.stringify(field_array)
       div.remove()
     })
     deleteB.innerText = "Delete"
@@ -928,6 +1033,7 @@
     div.append(label, br1, input, divselects, li_div, labelP, br2, inputP, deleteB)
     fieldDiv.appendChild(div)
     document.getElementById("fields_size").value = index
+    field_array.push(json_object)
   })
 
   function setInputFilter(textbox, inputFilter, errMsg) {
@@ -965,10 +1071,10 @@
   const http = document.getElementById("http");
   const http_div = document.getElementById("http-div");
   const key = document.getElementById("key");
-  const lon = document.getElementById("lon");
-  const lat = document.getElementById("lat");
-  lon.disabled = true;
-  lat.disabled = true;
+  const destination = document.getElementById("destination");
+  const source = document.getElementById("source");
+  destination.disabled = true;
+  source.disabled = true;
   button1.disabled = true;
   upload_button.disabled = true;
   const evtSource = new EventSource("/events");
@@ -985,6 +1091,7 @@
   var pf_select = document.getElementById("pf_select");
   var p_select = document.getElementById("p_select");
   var recordbtn = document.getElementById("record-btn");
+  recordbtn.hidden = true;
   const buttonText = recordbtn.querySelector("span");
 
   var chosen_json_file = document.getElementById("chosen_json_file");
@@ -1009,6 +1116,7 @@
 
   evtSource.onmessage = function (e) {
     const obj = JSON.parse(e.data);
+    // console.log(obj)
 
     if (obj.record == 1) {
       buttonText.textContent = "Stop Recording"
@@ -1056,18 +1164,39 @@
       const newDiv = document.createElement("div");
       newDiv.setAttribute('id', 'http-div');
 
-      if (value == 1) {
+      if (value.code == 1) {
         newSpan.setAttribute('class', 'logged-in');
         newP.textContent = "code : 200";
       }
-      else if (value == 0) {
+      else if (value.code == 0) {
         newSpan.setAttribute('class', 'logged-out');
         newP.textContent = "code : 503";
       }
-      else {
+
+      var newCellTime = newRow.insertCell();
+      const PTime = document.createElement("p");
+
+      var newCell3 = newRow.insertCell();
+      const newP1 = document.createElement("p");
+      newP1.setAttribute('id', 'resp_message');
+      if (value.ok_msg == "" && value.err_msg == "") {
         newSpan.setAttribute('class', 'waiting');
         newP.textContent = "code : _";
+        newP1.textContent = "Waiting for response ...";
+        PTime.textContent = "Waiting for response ...";
+      } else if (value.code == 0) {
+        newSpan.setAttribute('class', 'logged-out');
+        newP.textContent = "code : 503";
+        newP1.textContent = value.err_msg;
+        PTime.textContent = value.timestamp
+      } else if (value.code == 1) {
+        newSpan.setAttribute('class', 'logged-in');
+        newP.textContent = "code : 200";
+        newP1.textContent = value.ok_msg;
+        PTime.textContent = value.timestamp
       }
+      newCell3.appendChild(newP1);
+      newCellTime.appendChild(PTime);
 
       newDiv.appendChild(newSpan);
       newDiv.appendChild(newP);
@@ -1105,20 +1234,21 @@
 
   key.addEventListener("input", (event) => {
     if (key.value == "") {
-      lon.disabled = true;
-      lat.disabled = true;
+      destination.disabled = true;
+      source.disabled = true;
     } else {
-      lat.disabled = false;
-      lon.disabled = false;
+      source.disabled = false;
+      destination.disabled = false;
     }
-    button1.disabled = ((pf_select.value == "") || (tf_select.value == "") || (url.value == "")) && ((chosen_json_file.value == "") || (url.value == "")) && ((key.value == "") || (url.value == "") || (lat.value == "") || (lon.value == ""))
+
+    button1.disabled = ((pf_select.value == "") || (tf_select.value == "") || (url.value == "")) && ((chosen_json_file.value == "") || (url.value == "")) && ((key.value == "") || (url.value == "") || (source.value == "") || (destination.value == ""))
   });
 
-  lat.addEventListener("input", (event) => {
-    button1.disabled = (key.value == "") || (url.value == "") || (lat.value == "") || (lon.value == "")
+  source.addEventListener("input", (event) => {
+    button1.disabled = (/\d+h\d+m\d+s/.test()) || (key.value == "") || (url.value == "") || (source.value == "") || (destination.value == "")
   });
-  lon.addEventListener("input", (event) => {
-    button1.disabled = (key.value == "") || (url.value == "") || (lat.value == "") || (lon.value == "")
+  destination.addEventListener("input", (event) => {
+    button1.disabled = (key.value == "") || (url.value == "") || (source.value == "") || (destination.value == "")
   });
 
   json_file.addEventListener("change", (event) => {
@@ -1128,10 +1258,13 @@
       upload_button.disabled = true;
     }
   });
+  {% if track_dates and presence_dates %}
 
-  const tdata = {{ track_dates| json_encode() | safe }};
+  const tdata = {{ track_dates| json_encode() | safe
+  }};
   const pdata = {{ presence_dates| json_encode() | safe }};
 
+  {% endif %}
   tf_select.addEventListener("change", (event) => {
     removeOptions(t_select);
     for (var i = 0; i < tdata.length; i++) {

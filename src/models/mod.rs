@@ -3,6 +3,7 @@
 use bson::Document;
 use is_empty::IsEmpty;
 use rocket::FromForm;
+// pub mod instanat_wrapper;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Clone, Deserialize)]
@@ -37,6 +38,28 @@ pub struct Presence {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub time: Option<String>,
+}
+impl Default for Presence {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+impl Presence {
+    pub fn new() -> Presence {
+        Presence {
+            id: 0,
+            id_str: None,
+            typ: None,
+            reason: None,
+            fullreason: None,
+            asset: None,
+            time: None,
+            cs: None,
+            ip: None,
+            protocol: None,
+            connection_id: 0,
+        }
+    }
 }
 
 #[derive(FromForm, Default, Clone, Debug)]
