@@ -9,42 +9,38 @@ pub mod unit_test;
 
 // use mongodb::Collection;
 mod utils;
-use google_maps::prelude::DirectionsResponse;
-use rocket::response::stream::{Event, EventStream};
-use rust_decimal::prelude::*;
-use std::f64::consts::PI;
-
-use rocket::response::Redirect;
-use rocket::uri;
-use serde_json::{json, to_value, Value};
-use std::fs::File;
-use std::fs::{self, OpenOptions};
-use std::io::Read;
-use std::sync::atomic::AtomicI8;
-use std::sync::{Arc, Mutex};
-use std::time::Instant;
-use tokio::task::JoinHandle;
-type GDirection = core::result::Result<
-    google_maps::directions::response::Response,
-    google_maps::directions::error::Error,
->;
-use crate::models::{self, Base64, Presence, Tracks};
+use crate::models::{
+    presences::Presence, tracks::Base64, tracks::Fields, tracks::Tracks, Eveent, Req,
+};
 use core::sync::atomic::{AtomicUsize, Ordering};
 use dotenvy::dotenv;
+use google_maps::prelude::DirectionsResponse;
 use lazy_static::lazy_static;
-use models::{Eveent, Fields, Req};
 use rocket::http::ContentType;
 use rocket::http::Status;
+use rocket::response::stream::{Event, EventStream};
+use rocket::response::Redirect;
 use rocket::serde::json::Json;
+use rocket::uri;
 use rocket::Data;
 use rocket::{get, post};
 use rocket_dyn_templates::{context, Template};
 use rocket_multipart_form_data::{
     mime, MultipartFormData, MultipartFormDataField, MultipartFormDataOptions,
 };
+use rust_decimal::prelude::*;
+use serde_json::{json, to_value, Value};
+use std::f64::consts::PI;
+use std::fs::File;
+use std::fs::{self, OpenOptions};
+use std::io::Read;
 use std::path::PathBuf;
+use std::sync::atomic::AtomicI8;
 use std::sync::mpsc::{channel, Receiver, Sender, TryRecvError};
+use std::sync::{Arc, Mutex};
+use std::time::Instant;
 use std::{env, thread};
+use tokio::task::JoinHandle;
 use tokio::time::{self, Duration};
 
 lazy_static! {
@@ -547,27 +543,79 @@ pub async fn simulate(content_type: &ContentType, user_input: Data<'_>) -> Redir
         chosen_json_file_text = _text;
     }
 
-    let mut url_exists: bool = false;
-
     for index in 0..THREADS.len() {
         match THREADS.load(index) {
-            Some(e) => {
-                if e.0 == url_text {
-                    url_exists = true;
-                    break;
-                } else {
-                    url_exists = false;
+            Some(thread_ref) => {
+                if thread_ref.0 == url_text {
+                    return Redirect::to(uri!(index("Notification URL already exists !")));
                 }
             }
-            None => url_exists = false,
+            None => (),
         };
     }
 
-    if utils::ping_server(url_text.clone()) && !url_exists {
-        tokio::spawn(async move {
-            // use futures::future::join_all;
-            // let mut handles = vec![];
+    use google_maps::prelude::*;
+    let mut directions: DirectionsResponse = DirectionsResponse::from_str(r#"{
+        "geocoded_waypoints" : [
+           {
+              "geocoder_status" : "OK",
+              "place_id" : "ChIJE9on3F3HwoAR9AhGJW_fL-I",
+              "types" : [ "locality", "political" ]
+           },
+           {
+              "geocoder_status" : "OK",
+              "place_id" : "ChIJIQBpAG2ahYAR_6128GcTUEo",
+              "types" : [ "locality", "political" ]
+           }
+        ],
+        "routes" : [
+           {
+              "bounds" : {
+                 "northeast" : {
+                    "lat" : 37.8273634,
+                    "lng" : -118.2272819
+                 },
+                 "southwest" : {
+                    "lat" : 34.0523706,
+                    "lng" : -122.4228136
+                 }
+              },
+              "copyrights" : "Map data \u00a92023 Google",
+              "legs" : [
+              ],
+              "overview_polyline" : {
+                 "points" : "izynEnmupUyXrDwUbAo@vDcKhLyIgE__@ybAk~@wu@__@rLml@|`Ao~@bx@so@tkAci@pm@ypAf_@sgCvl@s^ru@ki@xZen@h~@qe@lSobBx~Bm^dq@y{@ll@m|@bbAe[`t@}Dbo@yRb[uCboA_b@~yBooBh_CqgD`}CinAfpAahCv`CkeAhnAcm@te@aa@p^wWjn@oYnjAgn@n~Ace@`k@y^dLu~Ar|@wnD~~@e{C`pAqlAfpBom@~p@ibAjCud@|Ga|@aL}g@xDe[hRkg@d]}m@h]eeBf}AevBtoA{n@pr@er@xi@ue@vo@ys@rq@q}@h{Ace@pm@yr@hL{lBnAwwA~o@uo@fv@wOrbAyZ|s@ke@xVal@xPwm@lIgVf]mm@~e@uWfy@ijBvnAaiCtv@ckDoKguBxAy|@ri@ae@~r@u{@jcBs`@zo@iJzaA}WzzCqw@~aA}ZdNcZ{G_bBkeBa[iVcZ`DmhAvt@udAjt@}eBdmBuf@~a@qx@r`Bwt@tTyy@b@cbBm@aaAjk@chA`X{cFdgAyeC|d@ml@hM}a@`i@yoAr|AqnDhnDeoMxwNqp_@vmb@qx^j_k@kfDheFimEt`FieIzzIupDtfDs_DfvBw`J`fGorXlbR}`BziAclExuDq`Ef|DykJltJenDtpDinAtjA{bAvtAsxB~~DinBdhEikCrgF{fAjdBirA~jAsyDniDguDleDaeEvfDgyIjyEycFdoC{yBplAwkBvyAwoD~_DugDtuCmmD~zCg}DfiDw`Kx|IsvBvwBk}BlrCyjJj`NcfCbrDyxB|jCuiKvmHweUbtNckLpeHazFzlE_bE|_FuzDtvEm{C`hC_nEtfEidH`{Gk|DpdD{gCnyAisIh}EeaAjg@}zAlW_eB`Yo~Fn`AaoH|nAc|ItpBu}Axj@cc@bXuwA||@mgFraCgnEhuDmhExhFghDvjEwaIhaLmyDvrF}mDp~GmmIbgPe}@reBe~An`Cwo@lu@aj@zaA`RprDdMh_CbYdtBxe@~j@nS~kA|Wbw@xEzz@uTfbA`ZnmCpxAjxEj@n{BpN~rBiC|uJ}B`eLjTtcE|CbgFsd@doDnIxtBStcAxJry@~g@|_ApPfhE[naBiw@x|@mm@hoAir@x`A{_Atd@ilArV__Azw@c_@bBqd@aS}pAtz@udA~lCmJltAel@d_Aa\\|_A{QprAyz@n~Bya@hRsa@hg@yc@`oCtBpmBlXhsCdMbvBn\\~gBf`C~oCtlBteCfTfWzVkD|FnJyBzc@oHjx@_WmS"
+              },
+              "summary" : "I-5 N",
+              "warnings" : [],
+              "waypoint_order" : []
+           }
+        ],
+        "status" : "OK"
+     }"#).unwrap();
 
+    if !key_text.is_empty() {
+        let google_maps_client = GoogleMapsClient::new(&key_text);
+        if let Ok(dir) = google_maps_client
+            .directions(
+                Location::Address(source_text),
+                Location::Address(destination_text),
+                // Location::LatLng(LatLng::try_from_f64(45.403_509, -75.618_904).unwrap()),
+            )
+            .with_travel_mode(TravelMode::Driving)
+            .execute()
+            .await
+        {
+            directions = dir;
+        } else {
+            return Redirect::to(uri!(index(
+                "Invalid API_KEY check the Documentation for setting one !"
+            )));
+        }
+    }
+
+    if utils::ping_server(url_text.clone()) {
+        let _request_handler = tokio::spawn(async move {
             let (tsender, treceiver) = channel();
             let (psender, preceiver) = channel();
             let (replay_sender, replay_receiver) = channel();
@@ -577,42 +625,27 @@ pub async fn simulate(content_type: &ContentType, user_input: Data<'_>) -> Redir
             let worker = tokio::spawn(async move {
                 use futures::future::join_all;
                 let mut handles = vec![];
-                use google_maps::prelude::*;
 
                 if !key_text.is_empty() {
-                    let google_maps_client = GoogleMapsClient::new(&key_text);
-                    if let Ok(directions) = google_maps_client
-                        .directions(
-                            Location::Address(source_text),
-                            Location::Address(destination_text),
-                            // Location::LatLng(LatLng::try_from_f64(45.403_509, -75.618_904).unwrap()),
-                        )
-                        .with_travel_mode(TravelMode::Driving)
-                        .execute()
-                        .await
-                    {
-                        simulation(
-                            directions,
-                            &key_text,
-                            &url_text,
-                            custom_fields_json,
-                            treceiver,
-                            preceiver,
-                        )
-                        .await;
-                    } else {
-                        println!("here");
-                        Redirect::to(uri!(index(
-                            "Invalid API_KEY check the Documentation for setting one !"
-                        )));
-                    }
+                    // real-time simulation
+                    simulation(
+                        directions,
+                        &key_text,
+                        &url_text,
+                        custom_fields_json,
+                        treceiver,
+                        preceiver,
+                    )
+                    .await;
                 } else if !chosen_json_file_text.is_empty() {
+                    // replay one single file
                     let replay_worker = tokio::spawn(async move {
                         replay_one_file(&url_text.clone(), &chosen_json_file_text, replay_receiver)
                             .await;
                     });
                     handles.push(replay_worker);
                 } else {
+                    // replay multiple seprate files (tracks, pesence, messages, poke ..)
                     replay(
                         &url_text.clone(),
                         &"2023-02-08".to_string(),
@@ -625,19 +658,21 @@ pub async fn simulate(content_type: &ContentType, user_input: Data<'_>) -> Redir
                     .await;
                 }
 
+                // wait for the single file replay to end
                 join_all(handles).await;
 
+                // if all working threads are done we delete the main thread from our threads struct
                 for index in 0..THREADS.len() {
-                    if let Some(e) = THREADS.load(index) {
-                        if e.0 == *cloned_url {
+                    if let Some(thread_ref) = THREADS.load(index) {
+                        if thread_ref.0 == *cloned_url {
                             THREADS.store(index, None);
                         }
                     }
                 }
-
                 println!("Work Done !")
             });
 
+            // store the new Client Request Thread
             THREADS.store(
                 INDEX.load(Ordering::Relaxed),
                 (
@@ -652,10 +687,9 @@ pub async fn simulate(content_type: &ContentType, user_input: Data<'_>) -> Redir
                     Mutex::new(String::from("")),
                 ),
             );
-            INDEX.store(INDEX.load(Ordering::Relaxed) + 1, Ordering::Relaxed);
 
-            // handles.push(worker);
-            // join_all(handles).await;
+            // update the number of threads +1
+            INDEX.store(INDEX.load(Ordering::Relaxed) + 1, Ordering::Relaxed);
 
             println!("Shuting down the Request Handler thread!!")
         });
