@@ -640,8 +640,13 @@ pub async fn simulate(content_type: &ContentType, user_input: Data<'_>) -> Redir
                 } else if !chosen_json_file_text.is_empty() {
                     // replay one single file
                     let replay_worker = tokio::spawn(async move {
-                        replay_one_file(&url_text.clone(), &chosen_json_file_text, replay_receiver)
-                            .await;
+                        replay_one_file(
+                            &url_text.clone(),
+                            &chosen_json_file_text,
+                            &mut custom_fields_json,
+                            replay_receiver,
+                        )
+                        .await;
                     });
                     handles.push(replay_worker);
                 } else {
@@ -699,7 +704,12 @@ pub async fn simulate(content_type: &ContentType, user_input: Data<'_>) -> Redir
     Redirect::to(uri!(index("Didn't receive a Pong or url already is use !")))
 }
 
-pub async fn replay_one_file(url: &String, path: &str, receiver: Receiver<()>) {
+pub async fn replay_one_file(
+    url: &String,
+    path: &str,
+    custom_fields: &mut Vec<Value>,
+    receiver: Receiver<()>,
+) {
     let data_array = utils::read_json_array_from_file(path).unwrap();
 
     let mut missed_data: Vec<Value> = vec![];
@@ -711,6 +721,12 @@ pub async fn replay_one_file(url: &String, path: &str, receiver: Receiver<()>) {
     let mut first = true;
 
     let mut current_status: i8 = 1;
+
+    let start_custom_fields_time = Instant::now();
+
+    let mut last_int_value: i16 = 0;
+
+    let mut first_custom_fields = true;
 
     'outer: for json_value in data_array {
         if first {
@@ -752,8 +768,31 @@ pub async fn replay_one_file(url: &String, path: &str, receiver: Receiver<()>) {
 
         let builder = {
             if current_status == 1 {
-                client.post(url).json(&vec![&json_value])
+                let mut json = vec![json_value.clone()];
+                if !custom_fields.is_empty() {
+                    let current_time = Instant::now();
+                    add_custom_fields(
+                        &mut json,
+                        custom_fields,
+                        start_custom_fields_time,
+                        current_time,
+                        &mut first_custom_fields,
+                        &mut last_int_value,
+                    );
+                }
+                client.post(url).json(&json)
             } else {
+                if !custom_fields.is_empty() {
+                    let current_time = Instant::now();
+                    add_custom_fields(
+                        &mut missed_data,
+                        custom_fields,
+                        start_custom_fields_time,
+                        current_time,
+                        &mut first_custom_fields,
+                        &mut last_int_value,
+                    );
+                }
                 client.post(url).json(&missed_data)
             }
         };
