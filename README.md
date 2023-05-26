@@ -1,20 +1,14 @@
 Munic Notifications Server Simulator
 
 • General Description
-So basically, Munic simulator is a tool for replaying or simulating real time data as a notification server, so for the first option you just need to upload your tracks/presence files, put your server’s URL, choose dates from which you want to replay, and run it, by that you’ll be able to notify your server with a POST request time sorted and a with HTTP response status indicating if the Paquet have been successfully received or not.
+In essence, the Munic simulator serves as a notification server tool that allows you to replay or simulate real-time data. To begin, you have the option of using an existing trip reference file for replaying, or you can upload your own trip file following the naming convention "trip*%i*%yyyy-%mm-%dd.json". After selecting the desired file, specify the URL of your server where you wish to receive the notifications. Once configured, simply initiate the replay process. As a result, you will be able to observe the arrival of POST requests in chronological order, along with their corresponding HTTP response status. Additionally, the simulator provides information such as the timestamp of the most recent request and a brief description of each request.
 
-And if in case your server was down for some time don’t you worry, you’ll be able to have up to 10 (adjustable) stored Paquets waiting for your server to reconnect and receive the whole missed data.
-Also to mange these requests we added a feature that
-Gives you the ability to kill the current running
-Processes which makes it easier if you don’t want to
-Wait for the whole replay to finish.
-Then for the second option which is simulating
-real-time generic and obd data, it’s basically the same
-process but you just need to have your own Google
-maps API KEY which if you don’t there is a little
-that shows you a link for creating one, then you add
-a source and a destination location, choose a refrence
-file, dates and you are all good ready to simulate,
-if you want more specefic fields data you are always
-welcome to add a more convinent refrence file for your use case.
-• Requirements : mongodb URI. You’ll find where to put it inside the .env file.
+In the event that your server experiences downtime, there is no need to worry. The Munic simulator has a feature that allows you to store up to 20 packets (configuranle in the .env file SHUTDOWN=true) while waiting for your server to reconnect. This ensures that you receive all the missed data once the connection is reestablished.
+
+Furthermore, we have incorporated a convenient functionality to manage these requests. You have the ability to terminate the current running processes, which is especially useful if you do not wish to wait for the entire replay to finish.
+
+Moving on to the second option, which involves simulating real-time generic and OBD data, the process remains similar. However, you will need to have your own Google Maps API key. If you don't already have one, there is a documentation box that provides a link guiding you through the creation of an API key. Once you have your API key, simply specify a source and destination location, and you are all set to simulate.
+
+If you require more specific field data, you can always utilize the custom fields feature. This feature allows you to add additional fields, choosing from boolean, integer, or random/array strings. These fields can be simulated at a specified frequency of time.
+
+• Requirements : working directory (DIR). You’ll find where to put it inside the .env file.

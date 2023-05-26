@@ -5,6 +5,7 @@ extern crate rocket;
 use atomic_array::AtomicOptionRefArray;
 use bson::{doc, Bson, Document};
 use chrono::{DateTime, Local, Utc};
+use futures::future::ok;
 pub mod unit_test;
 
 // use mongodb::Collection;
@@ -969,6 +970,18 @@ async fn simulate_tracks(
 
     let mut first_custom_fields = true;
 
+    dotenv().ok();
+
+    let shutdown = if let Ok(shutdwon) = env::var("SHUTDOWN") {
+        if shutdwon == "true" {
+            true
+        } else {
+            false
+        }
+    } else {
+        false
+    };
+
     'outer: for step in &json_data.steps {
         use geo::CoordsIter;
 
@@ -1144,7 +1157,7 @@ async fn simulate_tracks(
                     Err(err) => match current_status {
                         1 => {
                             current_status = 0;
-                            if tracks_array.len() == 20 {
+                            if tracks_array.len() == 20 && shutdown {
                                 break 'outer;
                             }
 
@@ -1164,7 +1177,7 @@ async fn simulate_tracks(
                                 *time_msg = Local::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
                             }
 
-                            if tracks_array.len() == 20 {
+                            if tracks_array.len() == 20 && shutdown {
                                 break 'outer;
                             }
                         }
