@@ -113,10 +113,19 @@ pub(crate) fn ping_server(url: String) -> bool {
 }
 
 pub(crate) fn float64_to_base64(f64_num: f64) -> String {
-    let fixed_point_value = (f64_num * 10000.0).round();
-    let signed_integer = fixed_point_value as i32;
-    let byte_array: [u8; 4] = signed_integer.to_le().to_ne_bytes();
+    let fixed_point_value = f64_num.round();
+    let integer = fixed_point_value as i32;
+    let byte_array: [u8; 4] = integer.to_be_bytes();
     base64::encode(byte_array)
+}
+
+pub(crate) fn convert_negative_angle(angle: f64) -> f64 {
+    let positive_angle = angle % 360.0;
+    if positive_angle < 0.0 {
+        positive_angle + 360.0
+    } else {
+        positive_angle
+    }
 }
 
 pub(crate) fn int_to_base64(value: i32) -> String {

@@ -1068,7 +1068,9 @@ async fn simulate_tracks(
                 b64_value: Some(utils::float64_to_base64(gps_speed)),
             });
             ref_track.fields.gps_dir = Some(Base64 {
-                b64_value: Some(utils::float64_to_base64(direction)),
+                b64_value: Some(utils::float64_to_base64(utils::convert_negative_angle(
+                    direction,
+                ))),
             });
             ref_track.fields.dio_ignition = Some(Base64 {
                 b64_value: Some(utils::bool_to_base64(true)),
