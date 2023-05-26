@@ -142,21 +142,18 @@ pub async fn notif(json_data: Json<serde_json::Value>) -> rocket::response::stat
 
                         for json_obj in Json(arr).into_inner() {
                             // Open the file in append mode
-                            match json_obj["payload"].get("type") {
-                                Some(e) => {
-                                    if e.as_str().unwrap() == "connect" {
-                                        file.write_all(b"[").expect("failed to write to file");
-                                        START.store(1, Ordering::Relaxed);
-                                    } else if e.as_str().unwrap() == "disconnect" {
-                                        let mut byte_array = serde_json::to_vec(&json_obj).unwrap();
-                                        byte_array.push(b']');
+                            if let Some(e) = json_obj["payload"].get("type") {
+                                if e.as_str().unwrap() == "connect" {
+                                    file.write_all(b"[").expect("failed to write to file");
+                                    START.store(1, Ordering::Relaxed);
+                                } else if e.as_str().unwrap() == "disconnect" {
+                                    let mut byte_array = serde_json::to_vec(&json_obj).unwrap();
+                                    byte_array.push(b']');
 
-                                        file.write_all(&byte_array[..])
-                                            .expect("failed to write to file");
-                                        START.store(0, Ordering::Relaxed);
-                                    }
+                                    file.write_all(&byte_array[..])
+                                        .expect("failed to write to file");
+                                    START.store(0, Ordering::Relaxed);
                                 }
-                                None => (),
                             }
 
                             if START.load(Ordering::Relaxed) == 1 {
@@ -231,25 +228,19 @@ pub async fn notif(json_data: Json<serde_json::Value>) -> rocket::response::stat
 
                             for json_obj in Json(arr).into_inner() {
                                 // Open the file in append mode
-                                match json_obj["payload"].get("type") {
-                                    Some(e) => {
-                                        if e.as_str().unwrap() == "connect" {
-                                            new_file
-                                                .write_all(b"[")
-                                                .expect("failed to write to file");
-                                            START.store(1, Ordering::Relaxed);
-                                        } else if e.as_str().unwrap() == "disconnect" {
-                                            let mut byte_array =
-                                                serde_json::to_vec(&json_obj).unwrap();
-                                            byte_array.push(b']');
+                                if let Some(e) = json_obj["payload"].get("type") {
+                                    if e.as_str().unwrap() == "connect" {
+                                        new_file.write_all(b"[").expect("failed to write to file");
+                                        START.store(1, Ordering::Relaxed);
+                                    } else if e.as_str().unwrap() == "disconnect" {
+                                        let mut byte_array = serde_json::to_vec(&json_obj).unwrap();
+                                        byte_array.push(b']');
 
-                                            new_file
-                                                .write_all(&byte_array[..])
-                                                .expect("failed to write to file");
-                                            START.store(0, Ordering::Relaxed);
-                                        }
+                                        new_file
+                                            .write_all(&byte_array[..])
+                                            .expect("failed to write to file");
+                                        START.store(0, Ordering::Relaxed);
                                     }
-                                    None => (),
                                 }
 
                                 if START.load(Ordering::Relaxed) == 1 {
@@ -290,21 +281,17 @@ pub async fn notif(json_data: Json<serde_json::Value>) -> rocket::response::stat
 
                             for json_obj in Json(arr).into_inner() {
                                 // Open the file in append mode
-                                match json_obj["payload"].get("type") {
-                                    Some(e) => {
-                                        if e.as_str().unwrap() == "connect" {
-                                            START.store(1, Ordering::Relaxed);
-                                        } else if e.as_str().unwrap() == "disconnect" {
-                                            let mut byte_array =
-                                                serde_json::to_vec(&json_obj).unwrap();
-                                            byte_array.push(b']');
+                                if let Some(e) = json_obj["payload"].get("type") {
+                                    if e.as_str().unwrap() == "connect" {
+                                        START.store(1, Ordering::Relaxed);
+                                    } else if e.as_str().unwrap() == "disconnect" {
+                                        let mut byte_array = serde_json::to_vec(&json_obj).unwrap();
+                                        byte_array.push(b']');
 
-                                            file.write_all(&byte_array[..])
-                                                .expect("failed to write to file");
-                                            START.store(0, Ordering::Relaxed);
-                                        }
+                                        file.write_all(&byte_array[..])
+                                            .expect("failed to write to file");
+                                        START.store(0, Ordering::Relaxed);
                                     }
-                                    None => (),
                                 }
 
                                 if START.load(Ordering::Relaxed) == 1 {
@@ -357,21 +344,18 @@ pub async fn notif(json_data: Json<serde_json::Value>) -> rocket::response::stat
 
                     for json_obj in Json(arr).into_inner() {
                         // Open the file in append mode
-                        match json_obj["payload"].get("type") {
-                            Some(e) => {
-                                if e.as_str().unwrap() == "connect" {
-                                    file.write_all(b"[").expect("failed to write to file");
-                                    START.store(1, Ordering::Relaxed);
-                                } else if e.as_str().unwrap() == "disconnect" {
-                                    let mut byte_array = serde_json::to_vec(&json_obj).unwrap();
-                                    byte_array.push(b']');
+                        if let Some(e) = json_obj["payload"].get("type") {
+                            if e.as_str().unwrap() == "connect" {
+                                file.write_all(b"[").expect("failed to write to file");
+                                START.store(1, Ordering::Relaxed);
+                            } else if e.as_str().unwrap() == "disconnect" {
+                                let mut byte_array = serde_json::to_vec(&json_obj).unwrap();
+                                byte_array.push(b']');
 
-                                    file.write_all(&byte_array[..])
-                                        .expect("failed to write to file");
-                                    START.store(0, Ordering::Relaxed);
-                                }
+                                file.write_all(&byte_array[..])
+                                    .expect("failed to write to file");
+                                START.store(0, Ordering::Relaxed);
                             }
-                            None => (),
                         }
 
                         if START.load(Ordering::Relaxed) == 1 {
@@ -480,7 +464,7 @@ pub async fn simulate(content_type: &ContentType, user_input: Data<'_>) -> Redir
         let _content_type = text_field.content_type;
         let _file_name = text_field.file_name;
         let _text = text_field.text;
-        if _text != "" {
+        if !_text.is_empty() {
             let json_array: Vec<Value> =
                 serde_json::from_str(&_text).expect("Failed to parse JSON array");
 
@@ -544,13 +528,10 @@ pub async fn simulate(content_type: &ContentType, user_input: Data<'_>) -> Redir
     }
 
     for index in 0..THREADS.len() {
-        match THREADS.load(index) {
-            Some(thread_ref) => {
-                if thread_ref.0 == url_text {
-                    return Redirect::to(uri!(index("Notification URL already exists !")));
-                }
+        if let Some(thread_ref) = THREADS.load(index) {
+            if thread_ref.0 == url_text {
+                return Redirect::to(uri!(index("Notification URL already exists !")));
             }
-            None => (),
         };
     }
 
@@ -997,7 +978,7 @@ async fn simulate_tracks(
             / (step.duration.value.num_minutes() + (step.duration.value.num_hours() * 360))
                 as f64)
             / 3.6)
-            * 1000 as f64
+            * 1000_f64
             / 1.852;
 
         let mut start = (
@@ -1050,18 +1031,13 @@ async fn simulate_tracks(
                 coord.y, coord.x, api_key
             );
 
-            let response = reqwest::get(&alt_url)
-                .await
-                .unwrap()
-                .json::<ElevationResponse>()
-                .await
-                .unwrap();
-
-            if response.status == ElevationStatus::Ok {
-                let result = &response.results.unwrap()[0];
-                ref_track.fields.gps_altitude = Some(Base64 {
-                    b64_value: Some(utils::float64_to_base64(result.elevation)),
-                });
+            if let Ok(response) = reqwest::get(&alt_url).await {
+                if let Ok(resp) = response.json::<ElevationResponse>().await {
+                    let result = &resp.results.unwrap()[0];
+                    ref_track.fields.gps_altitude = Some(Base64 {
+                        b64_value: Some(utils::float64_to_base64(result.elevation)),
+                    });
+                }
             }
 
             ref_track.fields.gps_speed = Some(Base64 {
@@ -1203,7 +1179,7 @@ async fn simulate_tracks(
 
 fn add_custom_fields(
     tracks_array: &mut Vec<Value>,
-    custom_fields: &mut Vec<Value>,
+    custom_fields: &mut [Value],
     start_time: Instant,
     current_time: Instant,
     first: &mut bool,

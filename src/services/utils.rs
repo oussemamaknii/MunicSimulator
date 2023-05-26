@@ -26,9 +26,9 @@ pub(crate) fn parse_instant_from_string(date_string: Option<&str>) -> Option<Ins
                 let duration_since_epoch =
                     date_time.with_timezone(&Utc).timestamp() - now.timestamp();
                 let instant = if duration_since_epoch < 0 {
-                    now_instant - Duration::from_secs(duration_since_epoch.abs() as u64)
+                    now_instant - Duration::from_secs(duration_since_epoch.unsigned_abs())
                 } else {
-                    now_instant + Duration::from_secs(duration_since_epoch.abs() as u64)
+                    now_instant + Duration::from_secs(duration_since_epoch.unsigned_abs())
                 };
                 Some(instant)
             } else {
