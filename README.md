@@ -6,6 +6,7 @@ In essence, the Munic simulator serves as a notification server tool that allows
   - %yyyy : year
   - %mm : month
   - %dd day
+
 . After selecting the desired file, specify the URL of your server where you wish to receive the notifications. Once configured, simply initiate the replay process. As a result, you will be able to observe the arrival of POST requests in chronological order, along with their corresponding HTTP response status. Additionally, the simulator provides information such as the timestamp of the most recent request and a brief description of each request.
 
 In the event that your server experiences downtime, there is no need to worry. The Munic simulator has a feature that allows you to store up to 20 packets (configuranle in the .env file SHUTDOWN=true) while waiting for your server to reconnect. This ensures that you receive all the missed data once the connection is reestablished.
