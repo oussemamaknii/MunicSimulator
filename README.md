@@ -1,7 +1,12 @@
 Munic Notifications Server Simulator
 
 • General Description
-In essence, the Munic simulator serves as a notification server tool that allows you to replay or simulate real-time data. To begin, you have the option of using an existing trip reference file for replaying, or you can upload your own trip file following the naming convention "trip_%i_%yyyy-%mm-%dd.json". After selecting the desired file, specify the URL of your server where you wish to receive the notifications. Once configured, simply initiate the replay process. As a result, you will be able to observe the arrival of POST requests in chronological order, along with their corresponding HTTP response status. Additionally, the simulator provides information such as the timestamp of the most recent request and a brief description of each request.
+In essence, the Munic simulator serves as a notification server tool that allows you to replay or simulate real-time data. To begin, you have the option of using an existing trip reference file for replaying, or you can upload your own trip file following the naming convention "trip_%i_%yyyy-%mm-%dd.json" : 
+  - %i : trip number
+  - %yyyy : year
+  - %mm : month
+  - %dd day
+. After selecting the desired file, specify the URL of your server where you wish to receive the notifications. Once configured, simply initiate the replay process. As a result, you will be able to observe the arrival of POST requests in chronological order, along with their corresponding HTTP response status. Additionally, the simulator provides information such as the timestamp of the most recent request and a brief description of each request.
 
 In the event that your server experiences downtime, there is no need to worry. The Munic simulator has a feature that allows you to store up to 20 packets (configuranle in the .env file SHUTDOWN=true) while waiting for your server to reconnect. This ensures that you receive all the missed data once the connection is reestablished.
 
