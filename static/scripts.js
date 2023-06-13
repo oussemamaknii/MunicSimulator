@@ -156,12 +156,15 @@ addcustom.addEventListener("click", function () {
         var opt0 = document.createElement("option");
         var opt1 = document.createElement("option");
         var opt2 = document.createElement("option");
+        var opt3 = document.createElement("option");
         opt0.textContent = "Choose a value";
         opt0.value = "";
         opt1.textContent = "True";
         opt1.value = "true";
         opt2.textContent = "False";
         opt2.value = "false";
+        opt3.textContent = "Random";
+        opt3.value = "random";
         select2.addEventListener("change", function (e) {
           if (e.target.value != "") {
             json_object.type.bool = e.target.value;
@@ -171,7 +174,7 @@ addcustom.addEventListener("click", function () {
           document.getElementById("fields_data").value =
             JSON.stringify(field_array);
         });
-        select2.append(opt0, opt1, opt2);
+        select2.append(opt0, opt1, opt2, opt3);
         divselects.append(labelV, select2);
         break;
       case "int":

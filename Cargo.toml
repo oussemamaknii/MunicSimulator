@@ -2,7 +2,7 @@
 [package]
 name = "munic_simulator"
 authors = ["oussema.makni@munic.io"]
-version = "1.1.4"
+version = "1.1.5"
 description = "A Notification Server for Simulating/replay Munic generic/OBD data."
 readme = "README.md"
 edition = "2021"

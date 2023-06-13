@@ -5,7 +5,7 @@ extern crate rocket;
 use atomic_array::AtomicOptionRefArray;
 use bson::{doc, Bson, Document};
 use chrono::{DateTime, Local, Utc};
-use futures::future::ok;
+use rand::Rng;
 pub mod unit_test;
 
 // use mongodb::Collection;
@@ -58,12 +58,15 @@ lazy_static! {
     )> = AtomicOptionRefArray::new(10);
 }
 
+// indexing how many request threads we got
 static INDEX: AtomicUsize = AtomicUsize::new(0);
 
 static START: AtomicUsize = AtomicUsize::new(0);
 
+// a stitc variable to know when to start recording requests coming from munic's notif server
 static RECORD: AtomicUsize = AtomicUsize::new(0);
 
+// change record state to start/stop recording
 #[post("/record")]
 pub fn record() {
     if RECORD.load(Ordering::Relaxed) == 0 {
@@ -73,8 +76,10 @@ pub fn record() {
     }
 }
 
+// notif is a request handling function that stores json data sent from munic's notif server into trips files found in uploads directory
 #[post("/", format = "json", data = "<json_data>")]
 pub async fn notif(json_data: Json<serde_json::Value>) -> rocket::response::status::Custom<String> {
+    // check if the record button is active
     if RECORD.load(Ordering::Relaxed) == 1 {
         use std::fs::{self};
         use std::io::prelude::*;
@@ -386,6 +391,7 @@ pub async fn notif(json_data: Json<serde_json::Value>) -> rocket::response::stat
     rocket::response::status::Custom(Status::Ok, "Record Disabled".to_string())
 }
 
+// obivously this req handlin func is made for storing files into the uploads directory
 #[post("/upload", data = "<data>")]
 pub async fn upload(content_type: &ContentType, data: Data<'_>) -> Redirect {
     let options = MultipartFormDataOptions::with_multipart_form_data_fields(vec![
@@ -424,12 +430,14 @@ pub async fn upload(content_type: &ContentType, data: Data<'_>) -> Redirect {
                 fs::rename(_path, path).unwrap()
             }
         }
+        return Redirect::to(uri!(index("File stored Successfully!")));
     }
-    Redirect::to(uri!(index("File stored Successfully!")))
+    Redirect::to(uri!(index("A problem occured storing your file !")))
 }
 
 #[post("/simulate", data = "<user_input>")]
 pub async fn simulate(content_type: &ContentType, user_input: Data<'_>) -> Redirect {
+    // Extracting all form fields using multi-part-form-data crate
     let options = MultipartFormDataOptions::with_multipart_form_data_fields(vec![
         MultipartFormDataField::text("url"),
         MultipartFormDataField::text("destination"),
@@ -466,6 +474,7 @@ pub async fn simulate(content_type: &ContentType, user_input: Data<'_>) -> Redir
         let _file_name = text_field.file_name;
         let _text = text_field.text;
         if !_text.is_empty() {
+            // parsing text field text into json object
             let json_array: Vec<Value> =
                 serde_json::from_str(&_text).expect("Failed to parse JSON array");
 
@@ -480,7 +489,6 @@ pub async fn simulate(content_type: &ContentType, user_input: Data<'_>) -> Redir
         let _file_name = text_field.file_name;
         let _text = text_field.text;
     }
-
     if let Some(mut url) = url {
         let text_field = url.remove(0);
 
@@ -536,6 +544,7 @@ pub async fn simulate(content_type: &ContentType, user_input: Data<'_>) -> Redir
         };
     }
 
+    // Checking if the api key is valid & at the same time getting directions for the trip
     use google_maps::prelude::*;
     let mut directions: DirectionsResponse = DirectionsResponse::from_str(r#"{
         "geocoded_waypoints" : [
@@ -591,11 +600,12 @@ pub async fn simulate(content_type: &ContentType, user_input: Data<'_>) -> Redir
             directions = dir;
         } else {
             return Redirect::to(uri!(index(
-                "Invalid API_KEY check the Documentation for setting one !"
+                "Invalid API_KEY check the Documentation for setting one or Invalid source/destination coordinates !"
             )));
         }
     }
 
+    // check if the server is online
     if utils::ping_server(url_text.clone()) {
         let _request_handler = tokio::spawn(async move {
             let (tsender, treceiver) = channel();
@@ -621,18 +631,27 @@ pub async fn simulate(content_type: &ContentType, user_input: Data<'_>) -> Redir
                     .await;
                 } else if !chosen_json_file_text.is_empty() {
                     // replay one single file
-                    let replay_worker = tokio::spawn(async move {
-                        replay_one_file(
-                            &url_text.clone(),
-                            &chosen_json_file_text,
-                            &mut custom_fields_json,
-                            replay_receiver,
+                    if let Ok(data_array) = utils::read_json_array_from_file(&chosen_json_file_text)
+                    {
+                        let replay_worker = tokio::spawn(async move {
+                            replay_one_file(
+                                &url_text.clone(),
+                                data_array,
+                                &mut custom_fields_json,
+                                replay_receiver,
+                            )
+                            .await;
+                        });
+                        handles.push(replay_worker);
+                    } else {
+                        println!(
+                            "can't read json array from file {} !",
+                            chosen_json_file_text
                         )
-                        .await;
-                    });
-                    handles.push(replay_worker);
+                    }
                 } else {
                     // replay multiple seprate files (tracks, pesence, messages, poke ..)
+                    // waiting for confirmation to continue work on it for now it's unused feature
                     replay(
                         &url_text.clone(),
                         &"2023-02-08".to_string(),
@@ -683,17 +702,17 @@ pub async fn simulate(content_type: &ContentType, user_input: Data<'_>) -> Redir
 
         return Redirect::to(uri!(index("Simulating !")));
     }
-    Redirect::to(uri!(index("Didn't receive a Pong or url already is use !")))
+    Redirect::to(uri!(index(
+        "Didn't receive a Pong make sure your server is online !"
+    )))
 }
 
 pub async fn replay_one_file(
     url: &String,
-    path: &str,
+    data_array: Vec<Value>,
     custom_fields: &mut Vec<Value>,
     receiver: Receiver<()>,
 ) {
-    let data_array = utils::read_json_array_from_file(path).unwrap();
-
     let mut missed_data: Vec<Value> = vec![];
 
     let mut previous: Value = json!("");
@@ -1215,7 +1234,13 @@ fn add_custom_fields(
                     if let Some(object) = update_data["type"].as_object() {
                         if object.contains_key("bool") {
                             struct_to_update["payload"]["fields"]
-                                [update_data["field_name"].as_str().unwrap().to_uppercase()] = json!({"b64_value" :utils::bool_to_base64(update_data["type"]["bool"].as_str().unwrap().parse::<bool>().unwrap())});
+                                [update_data["field_name"].as_str().unwrap().to_uppercase()] = json!({"b64_value" :utils::bool_to_base64(match update_data["type"]["bool"].as_str().unwrap().parse::<bool>(){
+                                Ok(e) => e,
+                                Err(_) => {
+                                    let mut rng = rand::thread_rng();
+                                    rng.gen::<bool>()
+                                },
+                            })});
                         }
                         if object.contains_key("int") {
                             struct_to_update["payload"]["fields"]
