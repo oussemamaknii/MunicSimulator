@@ -21,6 +21,7 @@ fn rocket() -> _ {
                 services::notif,
                 services::stream,
                 services::record,
+                services::config,
                 services::unit_test::test_int,
                 services::abort_thread
             ],

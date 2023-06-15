@@ -1,6 +1,7 @@
 var sim_chk = document.getElementById("radio1");
 var rep_chk = document.getElementById("radio2");
 var upl_chk = document.getElementById("radio4");
+var conf_chk = document.getElementById("radio5");
 
 showForm("form1");
 
@@ -47,6 +48,47 @@ upl_chk.addEventListener("change", function () {
     showForm("form2");
   }
 });
+
+conf_chk.addEventListener("change", function () {
+  if (conf_chk.checked) {
+    showForm("form3");
+  }
+});
+
+function submitConf() {
+  // Get form values
+  var wd = document.getElementById("wd").value;
+  var shutdown = document.getElementById("shutdown").value;
+  var imei = document.getElementById("imei").value;
+
+  // Create JSON object
+  var data = {
+    wd: wd,
+    shutdown: shutdown,
+    imei: imei,
+  };
+
+  // Send JSON data to server
+  fetch("/config", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(data),
+  })
+    .then(function (response) {
+      // Handle response
+      if (response.ok) {
+        window.location.href = "/Configured%20Successfuly%20!";
+      } else {
+        throw new Error("Error: " + response.status);
+      }
+    })
+    .catch(function (error) {
+      // Handle error
+      console.log("Error:", error);
+    });
+}
 
 function showForm(formId) {
   // Hide all forms

@@ -76,6 +76,31 @@ pub fn record() {
     }
 }
 
+#[post("/config", format = "json", data = "<json_data>")]
+pub fn config(json_data: Json<serde_json::Value>) -> rocket::response::status::Custom<String> {
+    dotenv().ok();
+    if let Ok(wd) = env::var("DIR") {
+        if wd != json_data["wd"].as_str().unwrap().to_owned() {
+            env::set_var("DIR", json_data["wd"].as_str().unwrap().to_owned())
+        }
+    };
+    if let Ok(shutdown) = env::var("SHUTDOWN") {
+        if shutdown != json_data["shutdown"].as_str().unwrap().to_owned() {
+            env::set_var(
+                "SHUTDOWN",
+                json_data["shutdown"].as_str().unwrap().to_owned(),
+            )
+        }
+    };
+    if let Ok(imei) = env::var("DIR") {
+        if imei != json_data["imei"].as_str().unwrap().to_owned() {
+            env::set_var("IMEI", json_data["imei"].as_str().unwrap().to_owned())
+        }
+    };
+
+    rocket::response::status::Custom(Status::Ok, "Processed JSON data successfully".to_string())
+}
+
 // notif is a request handling function that stores json data sent from munic's notif server into trips files found in uploads directory
 #[post("/", format = "json", data = "<json_data>")]
 pub async fn notif(json_data: Json<serde_json::Value>) -> rocket::response::status::Custom<String> {
@@ -912,9 +937,19 @@ async fn simulation(
     let mut ref_track: Tracks = serde_json::from_value::<Req<Tracks>>(filtered_tracks[0].clone())
         .unwrap()
         .payload;
+    ref_track.asset = if let Ok(x) = env::var("IMEI") {
+        Some(x)
+    } else {
+        ref_track.asset
+    };
 
     for json_value in filtered_presences {
-        if let Ok(req) = serde_json::from_value::<Req<Presence>>(json_value.clone()) {
+        if let Ok(mut req) = serde_json::from_value::<Req<Presence>>(json_value.clone()) {
+            req.payload.asset = if let Ok(x) = env::var("IMEI") {
+                Some(x)
+            } else {
+                req.payload.asset
+            };
             presences.push(req.payload);
         }
     }
@@ -1553,6 +1588,23 @@ pub async fn index(msg: String) -> Template {
     //     .unwrap();
 
     dotenv().ok();
+    let wd = if let Ok(wd) = env::var("DIR") {
+        wd
+    } else {
+        "".to_string()
+    };
+
+    let shutdown = if let Ok(shutdown) = env::var("SHUTDOWN") {
+        shutdown
+    } else {
+        "".to_string()
+    };
+
+    let imei: String = if let Ok(imei) = env::var("IMEI") {
+        imei
+    } else {
+        "".to_string()
+    };
     let path = format!("{}{}", env::var("DIR").unwrap(), "uploads/");
     let dir_entries = fs::read_dir(path).unwrap();
 
@@ -1565,7 +1617,7 @@ pub async fn index(msg: String) -> Template {
 
     Template::render(
         "index",
-        context! {msg:msg,json_data:file_names},
+        context! {msg:msg,json_data:file_names,wd:wd,shutdown:shutdown,imei:imei},
         // context! {msg:msg,presence_dates:presence_dates,track_dates:track_dates,json_data:file_names},
     )
 }
@@ -1621,6 +1673,24 @@ pub async fn indexx() -> Template {
     //     .unwrap();
 
     dotenv().ok();
+    let wd = if let Ok(wd) = env::var("DIR") {
+        wd
+    } else {
+        "".to_string()
+    };
+
+    let shutdown = if let Ok(shutdown) = env::var("SHUTDOWN") {
+        shutdown
+    } else {
+        "".to_string()
+    };
+
+    let imei: String = if let Ok(imei) = env::var("IMEI") {
+        imei
+    } else {
+        "".to_string()
+    };
+
     let path = format!("{}{}", env::var("DIR").unwrap(), "uploads/");
     let dir_entries = fs::read_dir(path).unwrap();
 
@@ -1633,7 +1703,7 @@ pub async fn indexx() -> Template {
 
     Template::render(
         "index",
-        context! {msg:"",json_data:file_names},
+        context! {msg:"",json_data:file_names,wd:wd,shutdown:shutdown,imei:imei},
         // context! {msg:"",presence_dates:presence_dates,track_dates:track_dates,json_data:file_names},
     )
 }

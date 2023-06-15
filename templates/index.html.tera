@@ -45,6 +45,9 @@
       <input type="radio" id="radio4" name="radios" value="false">
       <label for="radio4">Upload File</label>
 
+      <input type="radio" id="radio5" name="radios" value="false">
+      <label for="radio5">Configuration</label>
+
     </div>
     <div class="btn-nav">
       <button id="record-btn" type="button" class="btn btn-outline-danger">
@@ -104,12 +107,57 @@
         </div>
       </form>
 
+      <form id="form3" class="sim_form" onsubmit="event.preventDefault(); submitConf();">
+        <div class="formcontainer">
+          <div class="container">
+            <label><strong>Working Directory :</strong></label><br>
+            {% if wd %}
+            <input name="wd" id="wd" type="text" value="{{wd}}" placeholder="Enter your working directory"><br>
+            {% else %}
+            <input name="wd" id="wd" type="text" placeholder="Enter your working directory"><br>
+            {% endif %}
+
+            <label><strong>Shutdown threads :</strong></label><br>
+            <label>(if true we shutdown the thread after 20 missing paquets else we keep on
+              stroring the missed paquets)</label><br>
+            <select name="shutdown" id="shutdown" style="margin-bottom: 2%;">
+              {% if shutdown %}
+              {% if shutdown == "true" %}
+              <option value="">--- Choose your option ---</option>
+              <option value="true" selected>True</option>
+              <option value="false">False</option>
+              {% endif %}
+              {% if shutdown == "false" %}
+              <option value="">--- Choose your option ---</option>
+              <option value="true">True</option>
+              <option value="false" selected>False</option>
+              {% endif %}
+              {% else %}
+              <option value="">--- Choose your option ---</option>
+              <option value="true">True</option>
+              <option value="false">False</option>
+              {% endif %}
+            </select>
+            <br>
+
+            <label><strong>IMEI :</strong></label><br>
+            {% if imei %}
+            <input name="imei" id="imei" type="text" value="{{imei}}" placeholder="Enter your device'z IMEI"><br>
+            {% else %}
+            <input name="imei" id="imei" type="text" placeholder="Enter your device'z IMEI"><br>
+            {% endif %}
+
+          </div>
+          <input type="submit" class="button" value="Configure !!">
+        </div>
+      </form>
+
       <form id="form1" class="sim_form" enctype='multipart/form-data' method="post" action="/simulate">
         <div class="formcontainer">
           <div class="container">
 
             <label><strong>Your URL :</strong></label><br>
-            <input name="url" id="url" type="text" placeholder="Enter your Notification URL">
+            <input name="url" id="url" type="text" placeholder="Enter your Server's URL">
             <p>{{ msg }}</p>
             <div class="sim_elements">
               <h1>Coordinates</h1>
