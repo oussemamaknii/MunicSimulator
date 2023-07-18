@@ -1233,6 +1233,7 @@ async fn simulate_tracks(
                                 let mut time_msg = threads_ref.8.lock().unwrap();
                                 *time_msg = Local::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
                             }
+                            info!(target:"special","sent missing data !")
                         }
                         0 => {
                             if let Some(ref threads_ref) = threads_ref {
@@ -1241,6 +1242,8 @@ async fn simulate_tracks(
                                 let mut time_msg = threads_ref.8.lock().unwrap();
                                 *time_msg = Local::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
                             }
+
+                            warn!(target: "special","missed paquets !");
 
                             if tracks_array.len() == 20 && shutdown {
                                 break 'outer;
@@ -1467,6 +1470,7 @@ async fn simulate_presences(
                         let mut time_msg = threads_ref.8.lock().unwrap();
                         *time_msg = Local::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
                     }
+                    info!(target:"special","sent missing data !")
                 }
                 0 => {
                     if let Some(ref threads_ref) = threads_ref {
@@ -1475,6 +1479,7 @@ async fn simulate_presences(
                         let mut time_msg = threads_ref.8.lock().unwrap();
                         *time_msg = Local::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
                     }
+                    warn!(target: "special","missed paquets !");
                     presences_array.push(Req {
                         meta: Eveent {
                             event: "presence".to_string(),

@@ -15,12 +15,12 @@ appenders:
       roller:
         kind: delete
 root:
-  level: error
+  level: info
   appenders:
     - my_stdout
 loggers:
   special:
-    level: trace
+    level: info
     appenders:
       - Logger_file_logger
     additive: false
