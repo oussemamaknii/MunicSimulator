@@ -7,14 +7,14 @@ mod services;
 #[macro_use]
 extern crate log;
 extern crate env_logger;
-
-use rocket::fairing::AdHoc;
+use log4rs;
 
 #[launch]
 fn rocket() -> _ {
     dotenv().ok();
+    log4rs::init_file("src/logging_config.yaml", Default::default()).unwrap();
+
     rocket::build()
-        .attach(AdHoc::on_ignite("Logger", |rocket| async move { rocket }))
         .mount(
             "/public",
             FileServer::from("C:/Users/makni_o/Documents/MunicSimulator/static"),
