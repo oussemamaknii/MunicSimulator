@@ -4,11 +4,17 @@ use rocket::{fs::FileServer, launch, routes};
 use rocket_dyn_templates::Template;
 pub mod models;
 mod services;
+#[macro_use]
+extern crate log;
+extern crate env_logger;
+
+use rocket::fairing::AdHoc;
 
 #[launch]
 fn rocket() -> _ {
     dotenv().ok();
     rocket::build()
+        .attach(AdHoc::on_ignite("Logger", |rocket| async move { rocket }))
         .mount(
             "/public",
             FileServer::from("C:/Users/makni_o/Documents/MunicSimulator/static"),

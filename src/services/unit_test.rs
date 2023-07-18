@@ -15,7 +15,7 @@ pub fn test_int(json_data: Json<serde_json::Value>) {
             obj["min"].as_str().unwrap().parse::<i16>().unwrap()
                 ..=obj["max"].as_str().unwrap().parse::<i16>().unwrap(),
         );
-        println!("Initial value: {}", current_value);
+        info!("Initial value: {}", current_value);
 
         loop {
             thread::sleep(Duration::from_secs(1));
@@ -30,7 +30,7 @@ pub fn test_int(json_data: Json<serde_json::Value>) {
                 .max(obj["min"].as_str().unwrap().parse::<i16>().unwrap())
                 .min(obj["max"].as_str().unwrap().parse::<i16>().unwrap());
 
-            println!("Next value: {}", current_value);
+            info!("Next value: {}", current_value);
         }
     }
 }

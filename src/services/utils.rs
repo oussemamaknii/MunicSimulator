@@ -152,7 +152,7 @@ pub(crate) fn read_json_array_from_file(file_path: &str) -> serde_json::Result<V
     let json_value: Value = serde_json::from_str(&contents).unwrap();
     let array = json_value
         .as_array()
-        .ok_or_else(|| println!("Not a JSON array"))
+        .ok_or_else(|| error!("Not a JSON array"))
         .unwrap();
     Ok(array.to_vec())
 }

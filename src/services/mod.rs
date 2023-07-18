@@ -79,6 +79,7 @@ pub fn record() {
 #[post("/config", format = "json", data = "<json_data>")]
 pub fn config(json_data: Json<serde_json::Value>) -> rocket::response::status::Custom<String> {
     dotenv().ok();
+    info!("configuring !");
     if let Ok(wd) = env::var("DIR") {
         if wd != json_data["wd"].as_str().unwrap().to_owned() {
             env::set_var("DIR", json_data["wd"].as_str().unwrap().to_owned())
@@ -677,10 +678,10 @@ pub async fn simulate(content_type: &ContentType, user_input: Data<'_>) -> Redir
                         });
                         handles.push(replay_worker);
                     } else {
-                        println!(
+                        error!(
                             "can't read json array from file {} !",
                             chosen_json_file_text
-                        )
+                        );
                     }
                 } else {
                     // replay multiple seprate files (tracks, pesence, messages, poke ..)
@@ -708,7 +709,7 @@ pub async fn simulate(content_type: &ContentType, user_input: Data<'_>) -> Redir
                         }
                     }
                 }
-                println!("Work Done !")
+                info!("Work Done !")
             });
 
             // store the new Client Request Thread
@@ -730,7 +731,7 @@ pub async fn simulate(content_type: &ContentType, user_input: Data<'_>) -> Redir
             // update the number of threads +1
             INDEX.store(INDEX.load(Ordering::Relaxed) + 1, Ordering::Relaxed);
 
-            println!("Shuting down the Request Handler thread!!")
+            info!("Shuting down the Request Handler thread!!")
         });
 
         return Redirect::to(uri!(index("Simulating !")));
@@ -784,7 +785,7 @@ pub async fn replay_one_file(
                 time::sleep(Duration::from_secs(1)).await;
                 match receiver.try_recv() {
                     Ok(_) | Err(TryRecvError::Disconnected) => {
-                        println!("Terminating presence thread.");
+                        info!("Terminating presence thread.");
                         break 'outer;
                     }
                     Err(TryRecvError::Empty) => {}
@@ -794,7 +795,7 @@ pub async fn replay_one_file(
 
         previous = json_value.clone();
 
-        println!("sending (Replay one file)...");
+        info!("sending (Replay one file)...");
 
         if missed_data.len() == 10 {
             break 'outer;
@@ -905,7 +906,7 @@ pub async fn replay_one_file(
             }
         }
     }
-    println!("Shuting down the one file replay Handler thread!!")
+    info!("Shuting down the one file replay Handler thread!!")
 }
 
 async fn simulation(
@@ -1002,7 +1003,7 @@ async fn simulation(
         }
     }
 
-    println!("Shuting down the simulation thread Handler !!")
+    info!("Shuting down the simulation thread Handler !!")
 }
 
 async fn simulate_tracks(
@@ -1075,7 +1076,7 @@ async fn simulate_tracks(
             }
             match receiver.try_recv() {
                 Ok(_) | Err(TryRecvError::Disconnected) => {
-                    println!("Terminating tracks thread.");
+                    info!("Terminating tracks thread.");
                     break 'outer;
                 }
                 Err(TryRecvError::Empty) => {}
@@ -1142,7 +1143,7 @@ async fn simulate_tracks(
             });
 
             if start_time.elapsed() > std::time::Duration::from_secs(11) {
-                println!("sending tracks...");
+                info!("sending tracks...");
 
                 let mut tracks_array_value: Vec<Value> = tracks_array
                     .clone()
@@ -1249,7 +1250,7 @@ async fn simulate_tracks(
             }
         }
     }
-    println!("Shuting down tracks simulation the Handler thread!!")
+    info!("Shuting down tracks simulation the Handler thread!!")
 }
 
 fn add_custom_fields(
@@ -1322,7 +1323,7 @@ fn add_custom_fields(
                             }
                         }
                     } else {
-                        println!("'type' is not an object");
+                        error!("'type' is not an object");
                     }
                 }
 
@@ -1334,7 +1335,7 @@ fn add_custom_fields(
                     .expect("error updating last updated time !!");
             }
         } else {
-            println!("can't parse frequence !");
+            error!("can't parse frequence !");
         }
     }
 }
@@ -1367,7 +1368,7 @@ async fn simulate_presences(
                 time::sleep(Duration::from_secs(1)).await;
                 match receiver.try_recv() {
                     Ok(_) | Err(TryRecvError::Disconnected) => {
-                        println!("Terminating presence.");
+                        info!("Terminating presence.");
                         break 'outer;
                     }
                     Err(TryRecvError::Empty) => {}
@@ -1377,7 +1378,7 @@ async fn simulate_presences(
 
         old_pres = presence.clone();
 
-        println!("sending presence...");
+        info!("sending presence...");
 
         if presences_array.len() == 10 {
             break 'outer;
@@ -1487,7 +1488,7 @@ async fn simulate_presences(
             threads_ref.4.store(current_status, Ordering::Relaxed);
         }
     }
-    println!("Shuting down presence simulation the Handler thread!!")
+    info!("Shuting down presence simulation the Handler thread!!")
 }
 
 #[post("/abort", data = "<url>")]
@@ -1497,16 +1498,16 @@ pub fn abort_thread(url: String) {
             if e.0 == url {
                 let _ = &e.1.abort();
                 match e.2.send(()) {
-                    Ok(_e) => println!("Terminating tracks signal !"),
-                    Err(e) => println!("{:?}", e),
+                    Ok(_e) => info!("Terminating tracks signal !"),
+                    Err(e) => error!("{:?}", e),
                 }
                 match e.3.send(()) {
-                    Ok(_e) => println!("Terminating presences signal !"),
-                    Err(e) => println!("{:?}", e),
+                    Ok(_e) => info!("Terminating presences signal !"),
+                    Err(e) => error!("{:?}", e),
                 }
                 match e.5.send(()) {
-                    Ok(_e) => println!("Terminating replay one file signal !"),
-                    Err(e) => println!("{:?}", e),
+                    Ok(_e) => info!("Terminating replay one file signal !"),
+                    Err(e) => error!("{:?}", e),
                 }
                 THREADS.store(index, None);
                 break;
@@ -1771,12 +1772,12 @@ async fn replay(
     let tracks_data = tracks_collection
         .aggregate(tpipeline, None)
         .await
-        .map_err(|e| println!("{}", e))
+        .map_err(|e| error!("{}", e))
         .unwrap();
     let presence_data = presence_collection
         .aggregate(ppipeline, None)
         .await
-        .map_err(|e| println!("{}", e))
+        .map_err(|e| error!("{}", e))
         .unwrap();
 
     use futures::stream::TryStreamExt;
@@ -1784,12 +1785,12 @@ async fn replay(
     let tracks: Vec<_> = tracks_data
         .try_collect()
         .await
-        .map_err(|e| println!("{}", e))
+        .map_err(|e| error!("{}", e))
         .unwrap();
     let presences: Vec<_> = presence_data
         .try_collect()
         .await
-        .map_err(|e| println!("{}", e))
+        .map_err(|e| error!("{}", e))
         .unwrap();
 
     let track_client = reqwest::Client::new();
@@ -1822,7 +1823,7 @@ async fn replay(
         }
     }
 
-    println!("Shuting down replay the Handler thread!!")
+    info!("Shuting down replay the Handler thread!!")
 }
 
 pub async fn replay_tracks(
@@ -1857,7 +1858,7 @@ pub async fn replay_tracks(
                 time::sleep(Duration::from_secs(1)).await;
                 match receiver.try_recv() {
                     Ok(_) | Err(TryRecvError::Disconnected) => {
-                        println!("Terminating tracks thread.");
+                        info!("Terminating tracks thread.");
                         break 'outer;
                     }
                     Err(TryRecvError::Empty) => {}
@@ -1870,7 +1871,7 @@ pub async fn replay_tracks(
         let location = track.get_array("location").unwrap_or(&a);
         let loc = track.get_array("loc").unwrap_or(&a);
 
-        println!("sending replay tracks...");
+        info!("sending replay tracks...");
 
         if tracks_array.len() == 10 {
             break 'outer;
@@ -2035,7 +2036,7 @@ pub async fn replay_tracks(
             },
         }
     }
-    println!("Shuting down tracks replay the Handler thread!!")
+    info!("Shuting down tracks replay the Handler thread!!")
 }
 
 pub async fn replay_presence(
@@ -2066,7 +2067,7 @@ pub async fn replay_presence(
                 time::sleep(Duration::from_secs(1)).await;
                 match receiver.try_recv() {
                     Ok(_) | Err(TryRecvError::Disconnected) => {
-                        println!("Terminating presence thread.");
+                        info!("Terminating presence thread.");
                         break 'outer;
                     }
                     Err(TryRecvError::Empty) => {}
@@ -2076,7 +2077,7 @@ pub async fn replay_presence(
 
         old_pres = presence.clone();
 
-        println!("sending presence...");
+        info!("sending presence...");
 
         if presences_array.len() == 10 {
             break 'outer;
@@ -2278,7 +2279,7 @@ pub async fn replay_presence(
             threads_ref.4.store(current_status, Ordering::Relaxed);
         }
     }
-    println!("Shuting down presence replay the Handler thread!!")
+    info!("Shuting down presence replay the Handler thread!!")
 }
 
 // async fn store_tracks(file: &Option<String>) -> Result<(), Box<dyn Error + Send + Sync>> {
