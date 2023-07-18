@@ -1,4 +1,5 @@
 extern crate rocket;
+use dotenvy::dotenv;
 use rocket::{fs::FileServer, launch, routes};
 use rocket_dyn_templates::Template;
 pub mod models;
@@ -6,6 +7,7 @@ mod services;
 
 #[launch]
 fn rocket() -> _ {
+    dotenv().ok();
     rocket::build()
         .mount(
             "/public",

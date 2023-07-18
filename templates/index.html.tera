@@ -147,6 +147,14 @@
             <input name="imei" id="imei" type="text" placeholder="Enter your device'z IMEI"><br>
             {% endif %}
 
+            <label><strong>Number of Threads handled:</strong></label><br>
+            {% if imei %}
+            <input name="threads" id="threads" type="text" value="{{threads_nbr}}"
+              placeholder="Enter your Threads number"><br>
+            {% else %}
+            <input name="threads" id="threads" type="text" placeholder="Enter your Threads number"><br>
+            {% endif %}
+
           </div>
           <input type="submit" class="button" value="Configure !!">
         </div>

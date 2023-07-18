@@ -55,7 +55,7 @@ lazy_static! {
         Mutex<String>, // request err message
         Mutex<String>, // request ok message
         Mutex<String>, // timestamp string
-    )> = AtomicOptionRefArray::new(10);
+    )> = AtomicOptionRefArray::new(env::var("THREADS_NBR").unwrap().parse::<usize>().unwrap());
 }
 
 // indexing how many request threads we got
@@ -92,9 +92,17 @@ pub fn config(json_data: Json<serde_json::Value>) -> rocket::response::status::C
             )
         }
     };
-    if let Ok(imei) = env::var("DIR") {
+    if let Ok(imei) = env::var("IMEI") {
         if imei != json_data["imei"].as_str().unwrap().to_owned() {
             env::set_var("IMEI", json_data["imei"].as_str().unwrap().to_owned())
+        }
+    };
+    if let Ok(imei) = env::var("THREADS_NBR") {
+        if imei != json_data["threads"].as_str().unwrap().to_owned() {
+            env::set_var(
+                "THREADS_NBR",
+                json_data["threads"].as_str().unwrap().to_owned(),
+            )
         }
     };
 
@@ -1605,6 +1613,13 @@ pub async fn index(msg: String) -> Template {
     } else {
         "".to_string()
     };
+
+    let threads_nbr: String = if let Ok(imei) = env::var("THREADS_NBR") {
+        imei
+    } else {
+        "".to_string()
+    };
+
     let path = format!("{}{}", env::var("DIR").unwrap(), "uploads/");
     let dir_entries = fs::read_dir(path).unwrap();
 
@@ -1617,7 +1632,7 @@ pub async fn index(msg: String) -> Template {
 
     Template::render(
         "index",
-        context! {msg:msg,json_data:file_names,wd:wd,shutdown:shutdown,imei:imei},
+        context! {msg:msg,json_data:file_names,wd:wd,shutdown:shutdown,imei:imei,threads_nbr:threads_nbr},
         // context! {msg:msg,presence_dates:presence_dates,track_dates:track_dates,json_data:file_names},
     )
 }
@@ -1691,6 +1706,12 @@ pub async fn indexx() -> Template {
         "".to_string()
     };
 
+    let threads_nbr: String = if let Ok(imei) = env::var("THREADS_NBR") {
+        imei
+    } else {
+        "".to_string()
+    };
+
     let path = format!("{}{}", env::var("DIR").unwrap(), "uploads/");
     let dir_entries = fs::read_dir(path).unwrap();
 
@@ -1703,7 +1724,7 @@ pub async fn indexx() -> Template {
 
     Template::render(
         "index",
-        context! {msg:"",json_data:file_names,wd:wd,shutdown:shutdown,imei:imei},
+        context! {msg:"",json_data:file_names,wd:wd,shutdown:shutdown,imei:imei,threads_nbr:threads_nbr},
         // context! {msg:"",presence_dates:presence_dates,track_dates:track_dates,json_data:file_names},
     )
 }

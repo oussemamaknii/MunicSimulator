@@ -60,12 +60,14 @@ function submitConf() {
   var wd = document.getElementById("wd").value;
   var shutdown = document.getElementById("shutdown").value;
   var imei = document.getElementById("imei").value;
+  var threads = document.getElementById("threads").value;
 
   // Create JSON object
   var data = {
     wd: wd,
     shutdown: shutdown,
     imei: imei,
+    threads: threads,
   };
 
   // Send JSON data to server
