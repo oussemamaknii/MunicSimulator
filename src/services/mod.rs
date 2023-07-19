@@ -1053,9 +1053,10 @@ async fn simulate_tracks(
         let result = polyline::decode_polyline(&step.polyline.points, 5).unwrap();
 
         let gps_speed: f64 = ((step.distance.value as f64
-            / (step.duration.value.num_minutes() + (step.duration.value.num_hours() * 360))
-                as f64)
-            / 3.6)
+            / ((step.duration.value.num_minutes() * 60)
+                + step.duration.value.num_seconds()
+                + (step.duration.value.num_hours() * 360)) as f64)
+            * 3.6)
             * 1000_f64
             / 1.852;
 
