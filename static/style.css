@@ -166,11 +166,8 @@
   }
 
   #addcustom {
-    position: relative;
-    left: 645px;
+    float: right;
     margin-top: 2%;
-    padding: 10px 15px"
-
   }
 
   #field button {
@@ -393,6 +390,26 @@
     z-index: 1;
   }
 
+  #upload_custom_field {
+    background-color: rgb(53 190 235 / 38%);
+    color: white;
+    padding: 0.5rem;
+    font-family: sans-serif;
+    border-radius: 0.3rem;
+    cursor: pointer;
+    margin-top: 1rem;
+  }
+
+  .upload_custom_field{
+    float: right;
+  }
+  
+  #file-chosen{
+    margin-right: 0.3rem;
+    font-family: sans-serif;
+    text-align: center;
+  }
+  
   /* Links inside the dropdown */
   .dropdown-content label {
     width: 100%;

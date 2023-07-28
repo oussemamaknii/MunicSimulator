@@ -480,6 +480,9 @@ pub async fn simulate(content_type: &ContentType, user_input: Data<'_>) -> Redir
         MultipartFormDataField::text("chosen_json_file"),
         MultipartFormDataField::text("fields_size"),
         MultipartFormDataField::text("fields_data"),
+        MultipartFormDataField::file("upload_custom_field")
+            .content_type_by_string(Some(mime::APPLICATION_JSON))
+            .unwrap(),
     ]);
 
     let mut multipart_form_data = MultipartFormData::parse(content_type, user_input, options)
@@ -500,6 +503,20 @@ pub async fn simulate(content_type: &ContentType, user_input: Data<'_>) -> Redir
     let custom_fields = multipart_form_data.texts.remove("fields_data");
     let mut custom_fields_json: Vec<Value> = Vec::new();
     let fields_size = multipart_form_data.texts.remove("fields_size");
+    let custom_field = multipart_form_data.files.get("upload_custom_field");
+
+    if let Some(tcustom_field) = custom_field {
+        let file_field = &tcustom_field[0];
+
+        let _content_type = &file_field.content_type;
+        let _file_name = &file_field.file_name;
+        let _path = &file_field.path;
+        if let Ok(content) = fs::read_to_string(_path) {
+            if let Ok(json_value) = serde_json::from_str::<Vec<Value>>(&content) {
+                custom_fields_json = json_value;
+            }
+        }
+    }
 
     if let Some(mut custom_fields) = custom_fields {
         let text_field = custom_fields.remove(0);
@@ -509,10 +526,13 @@ pub async fn simulate(content_type: &ContentType, user_input: Data<'_>) -> Redir
         let _text = text_field.text;
         if !_text.is_empty() {
             // parsing text field text into json object
-            let json_array: Vec<Value> =
+            let mut json_array: Vec<Value> =
                 serde_json::from_str(&_text).expect("Failed to parse JSON array");
-
-            custom_fields_json = json_array;
+            if !custom_fields_json.is_empty() {
+                custom_fields_json.append(&mut json_array)
+            } else {
+                custom_fields_json = json_array;
+            }
         }
     }
 
@@ -813,6 +833,7 @@ pub async fn replay_one_file(
                         current_time,
                         &mut first_custom_fields,
                         &mut last_int_value,
+                        url,
                     );
                 }
                 client.post(url).json(&json)
@@ -826,6 +847,7 @@ pub async fn replay_one_file(
                         current_time,
                         &mut first_custom_fields,
                         &mut last_int_value,
+                        url,
                     );
                 }
                 client.post(url).json(&missed_data)
@@ -1163,6 +1185,7 @@ async fn simulate_tracks(
                         current_time,
                         &mut first_custom_fields,
                         &mut last_int_value,
+                        url,
                     );
                 }
 
@@ -1266,6 +1289,7 @@ fn add_custom_fields(
     current_time: Instant,
     first: &mut bool,
     last: &mut i16,
+    url: &String,
 ) {
     use humantime::parse_duration;
 
@@ -1277,25 +1301,25 @@ fn add_custom_fields(
         } else {
             current_time.duration_since(start_time)
         };
-
-        if let Ok(frequence) = parse_duration(update_data["frequence"].as_str().unwrap()) {
-            if elapsed_time >= frequence {
-                for struct_to_update in &mut *tracks_array {
-                    if let Some(object) = update_data["type"].as_object() {
-                        if object.contains_key("bool") {
-                            struct_to_update["payload"]["fields"]
-                                [update_data["field_name"].as_str().unwrap().to_uppercase()] = json!({"b64_value" :utils::bool_to_base64(match update_data["type"]["bool"].as_str().unwrap().parse::<bool>(){
-                                Ok(e) => e,
-                                Err(_) => {
-                                    let mut rng = rand::thread_rng();
-                                    rng.gen::<bool>()
-                                },
-                            })});
-                        }
-                        if object.contains_key("int") {
-                            struct_to_update["payload"]["fields"]
-                                [update_data["field_name"].as_str().unwrap().to_uppercase()] =
-                                json!(
+        if let Some(freq) = update_data["frequence"].as_str() {
+            if let Ok(frequence) = parse_duration(freq) {
+                if elapsed_time >= frequence {
+                    for struct_to_update in &mut *tracks_array {
+                        if let Some(object) = update_data["type"].as_object() {
+                            if object.contains_key("bool") {
+                                struct_to_update["payload"]["fields"]
+                                    [update_data["field_name"].as_str().unwrap().to_uppercase()] = json!({"b64_value" :utils::bool_to_base64(match update_data["type"]["bool"].as_str().unwrap().parse::<bool>(){
+                                    Ok(e) => e,
+                                    Err(_) => {
+                                        let mut rng = rand::thread_rng();
+                                        rng.gen::<bool>()
+                                    },
+                                })});
+                            }
+                            if object.contains_key("int") {
+                                struct_to_update["payload"]["fields"]
+                                    [update_data["field_name"].as_str().unwrap().to_uppercase()] =
+                                    json!(
                             {"b64_value" : utils::int_to_base64(utils::get_int_value(
                                 update_data["type"]["int"]["min"]
                                     .as_i64()
@@ -1309,39 +1333,51 @@ fn add_custom_fields(
                                 first,
                                 last,
                             ).into())});
-                        }
-                        if object.contains_key("string") {
-                            if let Some(size) = update_data["type"]["string"]["random"].as_i64() {
-                                struct_to_update["payload"]["fields"]
-                                    [update_data["field_name"].as_str().unwrap().to_uppercase()] = json!({
-                                    "b64_value": base64::encode(utils::generate_string(size))
-                                });
-                            } else if let Some(array) =
-                                update_data["type"]["string"]["array"].as_array()
-                            {
-                                struct_to_update["payload"]["fields"]
-                                    [update_data["field_name"].as_str().unwrap().to_uppercase()] =
-                                    if let Some(string) = utils::get_random_string_element(array) {
+                            }
+                            if object.contains_key("string") {
+                                if let Some(size) = update_data["type"]["string"]["random"].as_i64()
+                                {
+                                    struct_to_update["payload"]["fields"][update_data
+                                        ["field_name"]
+                                        .as_str()
+                                        .unwrap()
+                                        .to_uppercase()] = json!({
+                                        "b64_value": base64::encode(utils::generate_string(size))
+                                    });
+                                } else if let Some(array) =
+                                    update_data["type"]["string"]["array"].as_array()
+                                {
+                                    struct_to_update["payload"]["fields"][update_data
+                                        ["field_name"]
+                                        .as_str()
+                                        .unwrap()
+                                        .to_uppercase()] = if let Some(string) =
+                                        utils::get_random_string_element(array)
+                                    {
                                         json!({ "b64_value": base64::encode(string) })
                                     } else {
                                         Value::Null
                                     }
+                                }
                             }
+                        } else {
+                            error!(target: "special","'type' is not an object");
                         }
-                    } else {
-                        error!(target: "special","'type' is not an object");
                     }
+
+                    let time = Utc::now();
+
+                    let datetime_str = time.to_rfc3339();
+
+                    update_data["last_updated"] = serde_json::to_value(Some(datetime_str))
+                        .expect("error updating last updated time !!");
                 }
-
-                let time = Utc::now();
-
-                let datetime_str = time.to_rfc3339();
-
-                update_data["last_updated"] = serde_json::to_value(Some(datetime_str))
-                    .expect("error updating last updated time !!");
+            } else {
+                error!(target: "special","can't parse frequence !");
             }
         } else {
-            error!(target: "special","can't parse frequence !");
+            error!(target: "special","can't unwrap frequence !");
+            abort_thread(url.to_string());
         }
     }
 }
@@ -1856,9 +1892,9 @@ pub async fn replay_tracks(
             time::sleep(Duration::from_secs(1)).await;
             first = false;
         } else {
-            let t1 = DateTime::parse_from_rfc3339(track.get_str("recorded_at").unwrap()).unwrap();
+            let t1 = DateTime::parse_from_rfc3339(track.get_str("received_at").unwrap()).unwrap();
             let t2 =
-                DateTime::parse_from_rfc3339(old_track.get_str("recorded_at").unwrap()).unwrap();
+                DateTime::parse_from_rfc3339(old_track.get_str("received_at").unwrap()).unwrap();
 
             let elapsed_seconds = t1.timestamp() - t2.timestamp();
 

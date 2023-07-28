@@ -249,8 +249,23 @@
                   </div>
                 </div>
               </div>
+              <br>
             </div>
+
+            <div class="upload_custom_field">
+              <input type="file" accept="application/json" name="upload_custom_field" id="actual-btn" hidden />
+              <span id="file-chosen">No file chosen</span>
+              <label id="upload_custom_field" for="actual-btn">Upload Custom Fields</label>
+            </div>
+
+            <br>
+            <br>
+            <br>
             <button type="button" id="addcustom" class="btn btn-dark"><strong>Add Custom Field</strong></button>
+
+            <br>
+            <br>
+            <br>
             <div id="custom-fields">
 
             </div>
