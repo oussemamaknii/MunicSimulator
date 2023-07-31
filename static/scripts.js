@@ -604,7 +604,7 @@ function sendPoke(event) {
         sender: PokeSender,
         namespace: PokeNamespace,
         received_at: formattedDate,
-        b64_message: pokeMessage,
+        b64_message: btoa(pokeMessage),
       },
     },
   ]);
