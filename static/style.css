@@ -459,6 +459,9 @@
     background-color: rgb(24 26 27);
     padding: 20px;
     border-radius: 5px;
+    overflow: auto;
+    width: 400px;
+    height: 600px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
     z-index: 1000;
     display: none;
@@ -479,15 +482,33 @@
     border: 1px solid #ccc;
     border-radius: 3px;
   }
+  
+  .poke-form select {
+    width: 100%;
+    padding: 5px;
+    border: 1px solid #ccc;
+    margin-bottom: 2%;
+    border-radius: 3px;
+  }
+  
+  .poke-form #pokeMessage {
+    width: 100%;
+    padding: 5px;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+  }
 
-  .poke-form button[type="submit"] {
+  .poke-form .btn{
+    width: 100%;
+  }
+
+  .poke-form .btn button[type="submit"] {
     padding: 5px 10px;
     background-color: rgb(53 190 235 / 38%);
+    align-items: center;
     color: #fff;
     border: none;
     border-radius: 3px;
     margin-top: 7%;
-    margin-right: auto;
-    margin-left: 25%;
     cursor: pointer;
   }

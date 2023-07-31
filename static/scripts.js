@@ -574,11 +574,16 @@ function openPokeForm(threadUrl) {
 function closePokeFormOverlay() {
   const pokeFormOverlay = document.getElementById("pokeFormOverlay");
   const pokeForm = document.getElementById("pokeForm");
-  const pokeMessageInput = document.getElementById("pokeMessage");
+  const inputs = pokeForm.getElementsByTagName("input");
 
   pokeFormOverlay.classList.remove("active");
   pokeForm.classList.remove("active");
-  pokeMessageInput.value = "";
+
+  for (let i = 0; i < inputs.length; i++) {
+    inputs[i].value = "";
+  }
+  document.getElementById("template").value = "generic";
+  document.getElementById("pokeMessage").value = "";
 
   pokeFormOverlay.removeEventListener("click", closePokeFormOverlay);
 }
@@ -652,3 +657,115 @@ setInputFilter(
   },
   "Must be between 0 and 9999999999999999999"
 );
+function updateTextarea() {
+  const selectElement = document.getElementById("template");
+  const textareaElement = document.getElementById("pokeMessage");
+
+  // Get the selected option value
+  const selectedValue = selectElement.value;
+
+  // Set the textarea value based on the selected option
+  switch (selectedValue) {
+    case "generic":
+      textareaElement.value = "";
+      break;
+    case "alert":
+      try {
+        const formattedJson = JSON.stringify(
+          {
+            alerts: [
+              {
+                alert: {
+                  device_plug_unplug: {
+                    replug_information: {
+                      position: null,
+                      timestamp: "2023-05-19T09:02:53Z",
+                    },
+                    unplug_information: null,
+                  },
+                },
+                icon: "",
+                id: "866440555474518023",
+                received_at: "2023-05-19T09:02:53Z",
+              },
+            ],
+            header: {
+              language: "ENGLISH",
+              recorded_at: "2023-05-19T13:00:36.559141080Z",
+              vehicle: {
+                vehicle_id: "",
+                vin: "",
+              },
+            },
+          },
+          null,
+          2
+        );
+        textareaElement.value = formattedJson;
+      } catch (error) {
+        console.error("Invalid JSON:", error);
+      }
+      break;
+    case "journey":
+      try {
+        const formattedJson = JSON.stringify(
+          {
+            driving_duration_in_seconds: 246,
+            driving_percentage: 100,
+            end_event_id: "1772996215441490282",
+            end_position: {
+              latitude: 55.38411,
+              longitude: 10.4309,
+            },
+            end_time: "2023-05-25T12:52:28Z",
+            id: "868183574963290117",
+            idling_duration_in_seconds: 0,
+            idling_percentage: 0,
+            metadata: {
+              average_speed: {
+                double_value: 24.48,
+              },
+              distance_in_m: {
+                integer_value: 2030,
+              },
+              eco_driving_score: {
+                double_value: 80.0541716388626,
+              },
+              nb_harsh_acceleration: {
+                integer_value: 0,
+              },
+              nb_harsh_braking: {
+                integer_value: 0,
+              },
+              nb_harsh_cornering: {
+                integer_value: 0,
+              },
+              percentage_distance_in_day: {
+                double_value: 100,
+              },
+              safety_score: {
+                double_value: 85,
+              },
+            },
+            start_event_id: "1772995210507256170",
+            start_position: {
+              latitude: 55.38281,
+              longitude: 10.41006,
+            },
+            start_time: "2023-05-25T12:48:22Z",
+            state: "OPEN",
+            total_duration_in_seconds: 246,
+          },
+          null,
+          2
+        );
+        textareaElement.value = formattedJson;
+      } catch (error) {
+        console.error("Invalid JSON:", error);
+      }
+      break;
+    default:
+      textareaElement.value = "";
+      break;
+  }
+}

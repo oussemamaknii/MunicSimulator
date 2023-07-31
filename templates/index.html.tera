@@ -174,10 +174,18 @@
           <input type="text" id="PokeSender" required>
           <label for="PokeNamespace">Namespace:</label>
           <input type="text" id="PokeNamespace" required>
+          <label for="PokeNamespace">Message Template:</label>
+          <select name="template" id="template" required onchange="updateTextarea()">
+            <option value="generic">Generic</option>
+            <option value="alert">Alert Template</option>
+            <option value="journey">Journey Template</option>
+          </select>
           <label for="pokeMessage">Base64 Message:</label>
-          <input type="text" id="pokeMessage" required>
+          <textarea rows="4" cols="50" id="pokeMessage" required></textarea>
           <br>
-          <button type="submit">Send Poke</button>
+          <div class="btn">
+            <button type="submit">Send Poke</button>
+          </div>
         </form>
       </div>
 
