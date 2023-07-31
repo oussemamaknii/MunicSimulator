@@ -627,3 +627,25 @@ function sendPoke(event) {
 
   closePokeFormOverlay();
 }
+
+setInputFilter(
+  document.getElementById("PokeId"),
+  function (value) {
+    return (
+      /^\d*$/.test(value) &&
+      (value === "" || parseInt(value) <= 9999999999999999999)
+    );
+  },
+  "Must be between 0 and 9999999999999999999"
+);
+
+setInputFilter(
+  document.getElementById("PokeId"),
+  function (value) {
+    return (
+      /^\d*$/.test(value) &&
+      (value === "" || parseInt(value) <= 9999999999999999999)
+    );
+  },
+  "Must be between 0 and 9999999999999999999"
+);
