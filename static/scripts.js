@@ -512,7 +512,10 @@ addcustom.addEventListener("click", function () {
     labelP,
     br2,
     inputP,
-    deleteB
+    deleteB,
+    document.createElement("br"),
+    document.createElement("br"),
+    document.createElement("br")
   );
   fieldDiv.appendChild(div);
   document.getElementById("fields_size").value = index;
