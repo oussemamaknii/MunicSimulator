@@ -660,13 +660,15 @@ setInputFilter(
 function updateTextarea() {
   const selectElement = document.getElementById("template");
   const textareaElement = document.getElementById("pokeMessage");
+  const currentDate = new Date();
+  const formattedDate = currentDate.toISOString();
 
   // Get the selected option value
   const selectedValue = selectElement.value;
 
   // Set the textarea value based on the selected option
   switch (selectedValue) {
-    case "generic":
+    case "nNone":
       textareaElement.value = "";
       break;
     case "alert":
@@ -679,19 +681,19 @@ function updateTextarea() {
                   device_plug_unplug: {
                     replug_information: {
                       position: null,
-                      timestamp: "2023-05-19T09:02:53Z",
+                      timestamp: formattedDate,
                     },
                     unplug_information: null,
                   },
                 },
                 icon: "",
-                id: "866440555474518023",
-                received_at: "2023-05-19T09:02:53Z",
+                id: "123456789123456789",
+                received_at: formattedDate,
               },
             ],
             header: {
               language: "ENGLISH",
-              recorded_at: "2023-05-19T13:00:36.559141080Z",
+              recorded_at: formattedDate,
               vehicle: {
                 vehicle_id: "",
                 vin: "",
@@ -704,32 +706,33 @@ function updateTextarea() {
         textareaElement.value = formattedJson;
       } catch (error) {
         console.error("Invalid JSON:", error);
+        textareaElement.value = "";
       }
       break;
     case "journey":
       try {
         const formattedJson = JSON.stringify(
           {
-            driving_duration_in_seconds: 246,
-            driving_percentage: 100,
-            end_event_id: "1772996215441490282",
+            driving_duration_in_seconds: 123,
+            driving_percentage: 123,
+            end_event_id: formattedDate,
             end_position: {
-              latitude: 55.38411,
-              longitude: 10.4309,
+              latitude: 12.45678,
+              longitude: 12.3456,
             },
-            end_time: "2023-05-25T12:52:28Z",
-            id: "868183574963290117",
+            end_time: formattedDate,
+            id: "123456789123456789",
             idling_duration_in_seconds: 0,
             idling_percentage: 0,
             metadata: {
               average_speed: {
-                double_value: 24.48,
+                double_value: 12.34,
               },
               distance_in_m: {
-                integer_value: 2030,
+                integer_value: 1234,
               },
               eco_driving_score: {
-                double_value: 80.0541716388626,
+                double_value: 12.3456789123456,
               },
               nb_harsh_acceleration: {
                 integer_value: 0,
@@ -741,20 +744,20 @@ function updateTextarea() {
                 integer_value: 0,
               },
               percentage_distance_in_day: {
-                double_value: 100,
+                double_value: 123,
               },
               safety_score: {
-                double_value: 85,
+                double_value: 12,
               },
             },
-            start_event_id: "1772995210507256170",
+            start_event_id: "123456789123456789",
             start_position: {
-              latitude: 55.38281,
-              longitude: 10.41006,
+              latitude: 12.34567,
+              longitude: 12.34567,
             },
-            start_time: "2023-05-25T12:48:22Z",
+            start_time: formattedDate,
             state: "OPEN",
-            total_duration_in_seconds: 246,
+            total_duration_in_seconds: 123,
           },
           null,
           2
@@ -762,6 +765,7 @@ function updateTextarea() {
         textareaElement.value = formattedJson;
       } catch (error) {
         console.error("Invalid JSON:", error);
+        textareaElement.value = "";
       }
       break;
     default:

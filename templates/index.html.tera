@@ -176,7 +176,7 @@
           <input type="text" id="PokeNamespace" required>
           <label for="PokeNamespace">Message Template:</label>
           <select name="template" id="template" required onchange="updateTextarea()">
-            <option value="generic">Generic</option>
+            <option value="none">None</option>
             <option value="alert">Alert Template</option>
             <option value="journey">Journey Template</option>
           </select>
