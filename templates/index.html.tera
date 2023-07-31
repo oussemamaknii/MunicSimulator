@@ -84,6 +84,7 @@
             <th>HTTP Request Status</th>
             <th>Request Timestamp</th>
             <th>HTTP Request Message</th>
+            <th>Send Poke Message</th>
           </tr>
         </thead>
         <tbody>
@@ -159,6 +160,26 @@
           <input type="submit" class="button" value="Configure !!">
         </div>
       </form>
+
+      <div id="pokeFormOverlay" class="poke-form-overlay">
+      </div>
+
+      <div id="pokeForm" class="poke-form">
+        <form onsubmit="sendPoke(event)" style="display: block;" id="except-form">
+          <label for="PokeId">ID:</label>
+          <input type="text" id="PokeId" required>
+          <label for="PokeImei">Asset IMEI:</label>
+          <input type="text" id="PokeImei" required>
+          <label for="PokeSender">Sender:</label>
+          <input type="text" id="PokeSender" required>
+          <label for="PokeNamespace">Namespace:</label>
+          <input type="text" id="PokeNamespace" required>
+          <label for="pokeMessage">Base64 Message:</label>
+          <input type="text" id="pokeMessage" required>
+          <br>
+          <button type="submit">Send Poke</button>
+        </form>
+      </div>
 
       <form id="form1" class="sim_form" enctype='multipart/form-data' method="post" action="/simulate">
         <div class="formcontainer">

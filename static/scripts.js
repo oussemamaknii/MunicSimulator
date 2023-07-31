@@ -104,7 +104,9 @@ function showForm(formId) {
   // Hide all forms
   var forms = document.getElementsByTagName("form");
   for (var i = 0; i < forms.length; i++) {
-    forms[i].style.display = "none";
+    if (forms[i].id !== "except-form") {
+      forms[i].style.display = "none";
+    }
   }
 
   // Show the selected form
@@ -550,4 +552,78 @@ function setInputFilter(textbox, inputFilter, errMsg) {
       }
     });
   });
+}
+
+function openPokeForm(threadUrl) {
+  const pokeFormOverlay = document.getElementById("pokeFormOverlay");
+  const pokeForm = document.getElementById("pokeForm");
+  const pokeMessageInput = document.getElementById("pokeMessage");
+
+  pokeFormOverlay.classList.add("active");
+  pokeForm.classList.add("active");
+  pokeMessageInput.focus();
+
+  pokeForm.dataset.url = threadUrl;
+
+  pokeFormOverlay.addEventListener("click", closePokeFormOverlay);
+}
+
+function closePokeFormOverlay() {
+  const pokeFormOverlay = document.getElementById("pokeFormOverlay");
+  const pokeForm = document.getElementById("pokeForm");
+  const pokeMessageInput = document.getElementById("pokeMessage");
+
+  pokeFormOverlay.classList.remove("active");
+  pokeForm.classList.remove("active");
+  pokeMessageInput.value = "";
+
+  pokeFormOverlay.removeEventListener("click", closePokeFormOverlay);
+}
+
+function sendPoke(event) {
+  event.preventDefault();
+  const threadUrl = pokeForm.dataset.url;
+  const PokeId = document.getElementById("PokeId").value;
+  const PokeImei = document.getElementById("PokeImei").value;
+  const PokeSender = document.getElementById("PokeSender").value;
+  const PokeNamespace = document.getElementById("PokeNamespace").value;
+  const pokeMessage = document.getElementById("pokeMessage").value;
+  const currentDate = new Date();
+  const formattedDate = currentDate.toISOString();
+
+  const jsonString = JSON.stringify([
+    {
+      meta: {
+        account: "municio",
+        event: "poke",
+      },
+      payload: {
+        id: parseInt(PokeId),
+        id_str: PokeId,
+        asset: PokeImei,
+        sender: PokeSender,
+        namespace: PokeNamespace,
+        received_at: formattedDate,
+        b64_message: pokeMessage,
+      },
+    },
+  ]);
+
+  console.log(`Sending poke to ${threadUrl} with message: ${jsonString}`);
+
+  fetch(threadUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: jsonString,
+  }).then((response) => {
+    if (response.ok) {
+      console.log("Poke sent successfully!");
+    } else {
+      console.log("Failed to send poke.");
+    }
+  });
+
+  closePokeFormOverlay();
 }

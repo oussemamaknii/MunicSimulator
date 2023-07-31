@@ -133,6 +133,17 @@ evtSource.onmessage = function (e) {
     newDiv.appendChild(newSpan);
     newDiv.appendChild(newP);
     newCell2.appendChild(newDiv);
+
+    var newPoke = newRow.insertCell();
+    const BPoke = document.createElement("button");
+    BPoke.textContent = " Send Poke";
+    BPoke.setAttribute("id", "btn");
+    // BPoke.setAttribute("style", "width=100%;");
+    // BPoke.setAttribute("class", "inp");
+    BPoke.addEventListener("click", () => {
+      openPokeForm(key);
+    });
+    newPoke.appendChild(BPoke);
   }
 
   let allButtons = document.getElementsByClassName("inp");
